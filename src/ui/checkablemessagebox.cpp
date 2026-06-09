@@ -58,9 +58,8 @@ void CheckableMessageBox::setText( const QString & t )
 
 QPixmap CheckableMessageBox::iconPixmap() const
 {
-    if ( const QPixmap * p = m_d->ui.pixmapLabel->pixmap() )
-        return QPixmap( *p );
-    return QPixmap();
+    // Qt 6: QLabel::pixmap() returns a QPixmap by value (was const QPixmap *).
+    return m_d->ui.pixmapLabel->pixmap();
 }
 
 void CheckableMessageBox::setIconPixmap( const QPixmap & p )

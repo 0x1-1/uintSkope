@@ -1,0 +1,286 @@
+name: Discord Commit Log
+
+# Posts a richly-detailed Discord notification for every push: per-commit
+# message, author/committer, timestamps, verification, full file lists with
+# per-file +/- line counts, and an overall push summary.
+#
+# Setup: add the webhook as a repository secret (NEVER hardcode it):
+#   gh secret set DISCORD_WEBHOOK_URL --body "https://discord.com/api/webhooks/..."
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - modernize-uintSkope
+  workflow_dispatch:
+
+permissions:
+  contents: read   # needed to read per-commit stats via the GitHub API
+
+concurrency:
+  group: discord-log-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  notify-discord:
+    # Skip branch deletions and tag pushes; report normal commit pushes.
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.deleted == false && github.event.commits[0] != null) }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send detailed commit log to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          PUSHER: ${{ github.actor }}
+          PUSHER_URL: ${{ github.server_url }}/${{ github.actor }}
+          COMPARE_URL: ${{ github.event.compare }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+          FORCED: ${{ github.event.forced }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+
+          API     = "https://api.github.com"
+          WEBHOOK = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+          TOKEN   = os.environ.get("GITHUB_TOKEN", "")
+          REPO    = os.environ["REPO"]
+          REPO_URL= os.environ["REPO_URL"]
+          BRANCH  = os.environ["BRANCH"]
+          PUSHER  = os.environ["PUSHER"]
+          PUSHER_URL = os.environ["PUSHER_URL"]
+          COMPARE = os.environ.get("COMPARE_URL", "")
+          BEFORE  = os.environ.get("BEFORE_SHA", "")
+          AFTER   = os.environ.get("AFTER_SHA", "")
+          FORCED  = os.environ.get("FORCED", "false") == "true"
+          RUN_URL = os.environ.get("RUN_URL", "")
+          UA      = f"uintSkope-Devlog (+{REPO_URL})"
+
+          if not WEBHOOK:
+              raise SystemExit("DISCORD_WEBHOOK_URL secret tanimli degil; islem iptal edildi.")
+
+          # ---- helpers ---------------------------------------------------------
+          def trunc(s, n):
+              s = s or ""
+              return s if len(s) <= n else s[: n - 1] + "…"
+
+          def gh_get(path):
+              req = urllib.request.Request(
+                  API + path,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {TOKEN}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": UA,
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  print(f"GitHub API {path} -> HTTP {e.code}")
+                  return None
+              except Exception as e:  # noqa: BLE001
+                  print(f"GitHub API {path} -> {e}")
+                  return None
+
+          def post(payload):
+              data = json.dumps(payload).encode("utf-8")
+              for attempt in range(5):
+                  req = urllib.request.Request(
+                      WEBHOOK + "?wait=true",
+                      data=data,
+                      headers={"Content-Type": "application/json", "User-Agent": UA},
+                      method="POST",
+                  )
+                  try:
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          print("Discord:", r.status, r.reason)
+                          return True
+                  except urllib.error.HTTPError as e:
+                      if e.code == 429:  # rate limited
+                          body = {}
+                          try:
+                              body = json.loads(e.read().decode("utf-8"))
+                          except Exception:  # noqa: BLE001
+                              pass
+                          wait = float(body.get("retry_after", 2)) + 0.25
+                          print(f"Rate limited; {wait:.2f}s bekleniyor...")
+                          time.sleep(wait)
+                          continue
+                      print(f"Discord webhook HTTP {e.code}: {e.read().decode('utf-8','replace')}")
+                      return False
+                  except Exception as e:  # noqa: BLE001
+                      print(f"Discord webhook hatasi: {e}")
+                      time.sleep(1.5)
+              return False
+
+          STATUS = {
+              "added": "\U0001F7E2",     # green circle
+              "modified": "\U0001F7E1",  # yellow circle
+              "removed": "\U0001F534",   # red circle
+              "renamed": "\U0001F535",   # blue circle
+              "copied": "⚪",        # white circle
+              "changed": "\U0001F7E0",   # orange circle
+          }
+
+          # ---- gather push payload --------------------------------------------
+          with open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8") as f:
+              event = json.load(f)
+          commits = event.get("commits", []) or []
+
+          if not commits:
+              print("Push payload icinde commit yok; sessiz cikis.")
+              raise SystemExit(0)
+
+          MAX_DETAILED = 15
+          shown   = commits[:MAX_DETAILED]
+          overflow = len(commits) - len(shown)
+
+          total_add = total_del = total_files = 0
+          embeds = []
+
+          for c in shown:
+              sha   = c["id"]
+              short = sha[:7]
+              url   = c.get("url", f"{REPO_URL}/commit/{sha}")
+              title = trunc((c.get("message", "") or "").splitlines()[0] or "(bos mesaj)", 256)
+              body  = "\n".join((c.get("message", "") or "").splitlines()[1:]).strip()
+
+              author = c.get("author", {}) or {}
+              committer = c.get("committer", {}) or {}
+              a_name = author.get("name", "?")
+              a_user = author.get("username")
+              a_mail = author.get("email", "")
+
+              # Per-commit stats + files (richer than the push payload).
+              detail = gh_get(f"/repos/{REPO}/commits/{sha}")
+              add = dele = 0
+              files = []
+              verified = None
+              if detail:
+                  st = detail.get("stats", {}) or {}
+                  add, dele = st.get("additions", 0), st.get("deletions", 0)
+                  files = detail.get("files", []) or []
+                  verified = (((detail.get("commit") or {}).get("verification") or {}).get("verified"))
+              else:
+                  files = (
+                      [{"filename": p, "status": "added"} for p in c.get("added", [])]
+                      + [{"filename": p, "status": "modified"} for p in c.get("modified", [])]
+                      + [{"filename": p, "status": "removed"} for p in c.get("removed", [])]
+                  )
+
+              total_add += add
+              total_del += dele
+              total_files += len(files)
+
+              # Build the file list (status icon + path + per-file +/-), capped to 1024 chars.
+              lines, more = [], 0
+              for fobj in files:
+                  icon = STATUS.get(fobj.get("status", "modified"), "\U0001F7E0")
+                  fa, fd = fobj.get("additions"), fobj.get("deletions")
+                  delta = f"  `+{fa}/-{fd}`" if (fa is not None and fd is not None) else ""
+                  entry = f"{icon} `{fobj.get('filename','?')}`{delta}"
+                  candidate = "\n".join(lines + [entry])
+                  if len(candidate) > 950 or len(lines) >= 25:
+                      more = len(files) - len(lines)
+                      break
+                  lines.append(entry)
+              if more > 0:
+                  lines.append(f"… ve {more} dosya daha")
+              files_value = trunc("\n".join(lines) if lines else "_degisiklik bilgisi yok_", 1024)
+
+              color = 0x2ECC71 if add > dele else (0xE74C3C if dele > add else 0x5865F2)
+
+              fields = [
+                  {"name": "Yazar", "value": trunc(f"{a_name}" + (f" (`{a_user}`)" if a_user else "") + (f"\n{a_mail}" if a_mail else ""), 1024), "inline": True},
+                  {"name": "Commit", "value": f"[`{short}`]({url})", "inline": True},
+                  {"name": "Satir", "value": f"\U0001F7E9 +{add}  \U0001F7E5 -{dele}", "inline": True},
+              ]
+              if committer.get("name") and committer.get("name") != a_name:
+                  fields.append({"name": "Commit'leyen", "value": trunc(committer.get("name", ""), 1024), "inline": True})
+              if verified is not None:
+                  fields.append({"name": "Imza", "value": "✅ dogrulandi" if verified else "⚠️ dogrulanmadi", "inline": True})
+              fields.append({"name": f"Dosyalar ({len(files)})", "value": files_value, "inline": False})
+
+              embed = {
+                  "title": title,
+                  "url": url,
+                  "color": color,
+                  "timestamp": c.get("timestamp"),
+                  "author": {"name": trunc(a_name, 256), "url": (f"{os.environ['GITHUB_SERVER_URL']}/{a_user}" if (a_user and os.environ.get('GITHUB_SERVER_URL')) else None)},
+                  "fields": fields,
+                  "footer": {"text": trunc(f"{REPO} · {BRANCH} · {short}", 2048)},
+              }
+              if body:
+                  embed["description"] = trunc(body, 3500)
+              embeds.append(embed)
+
+          # ---- header + summary embed -----------------------------------------
+          plural = "commit" if len(commits) == 1 else "commit"
+          header = (
+              f"\U0001F4E6 **{REPO}** deposuna **{len(commits)}** {plural} push edildi"
+              + ("  ⚠️ *(force push)*" if FORCED else "")
+          )
+
+          summary = {
+              "title": f"\U0001F4CA Push ozeti — {BRANCH}",
+              "url": COMPARE or REPO_URL,
+              "color": 0x5865F2,
+              "fields": [
+                  {"name": "Depo", "value": f"[{REPO}]({REPO_URL})", "inline": True},
+                  {"name": "Branch", "value": f"`{BRANCH}`", "inline": True},
+                  {"name": "Push eden", "value": f"[{PUSHER}]({PUSHER_URL})", "inline": True},
+                  {"name": "Commit", "value": str(len(commits)), "inline": True},
+                  {"name": "Dosya (gosterilen)", "value": str(total_files), "inline": True},
+                  {"name": "Toplam satir", "value": f"\U0001F7E9 +{total_add}  \U0001F7E5 -{total_del}", "inline": True},
+                  {"name": "Aralik", "value": trunc(f"`{BEFORE[:7]}` → `{AFTER[:7]}`", 1024), "inline": True},
+              ],
+              "footer": {"text": trunc(REPO, 2048)},
+          }
+          links = []
+          if COMPARE:
+              links.append(f"[Karsilastir]({COMPARE})")
+          if RUN_URL:
+              links.append(f"[Workflow]({RUN_URL})")
+          if links:
+              summary["description"] = " · ".join(links)
+          if overflow > 0:
+              summary["fields"].append({"name": "Not", "value": f"Ilk {MAX_DETAILED} commit gosterildi; **{overflow}** commit daha var.", "inline": False})
+
+          # ---- send (batched so each message stays within Discord limits) -----
+          def embed_size(e):
+              n = len(e.get("title", "")) + len(e.get("description", "")) + len(e.get("footer", {}).get("text", "")) + len(e.get("author", {}).get("name", ""))
+              for fld in e.get("fields", []):
+                  n += len(fld.get("name", "")) + len(fld.get("value", ""))
+              return n
+
+          # First message carries the header text + summary embed.
+          post({"username": "uintSkope Devlog", "content": trunc(header, 2000), "embeds": [summary], "allowed_mentions": {"parse": []}})
+
+          batch, size = [], 0
+          def flush():
+              global batch, size
+              if not batch:
+                  return
+              post({"username": "uintSkope Devlog", "embeds": batch, "allowed_mentions": {"parse": []}})
+              time.sleep(0.6)
+              batch, size = [], 0
+
+          for e in embeds:
+              es = embed_size(e)
+              if batch and (len(batch) >= 8 or size + es > 5500):
+                  flush()
+              batch.append(e)
+              size += es
+          flush()
+
+          print("Discord bildirimi tamamlandi.")
+          PY

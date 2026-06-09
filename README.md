@@ -1,46 +1,102 @@
-﻿# NifSkope 2.0.dev7
+# uintSkope
 
-NifSkope is a tool for opening and editing the NetImmerse file format (NIF). NIF is used by video games such as Morrowind, Oblivion, Skyrim, Fallout 3, Fallout: New Vegas, Civilization IV, and more. 
+[![CI](https://github.com/uintptr/uintSkope/actions/workflows/ci.yml/badge.svg)](https://github.com/uintptr/uintSkope/actions/workflows/ci.yml)
 
-### Download
+**uintSkope** is a maintained, modernized fork of
+[**NifSkope**](https://github.com/niftools/nifskope) — a desktop tool for opening,
+viewing and editing the **NetImmerse / Gamebryo** file formats used by games such
+as Morrowind, Oblivion, Skyrim, Fallout 3, Fallout: New Vegas, Civilization IV and
+many others.
 
-You can download the latest official release from [GitHub](https://github.com/niftools/nifskope/releases). More frequent development builds are posted in the [NifTools Discord](https://discord.gg/ZFjdN4x), pinned to #software.
+> uintSkope is an independent community fork. It is **not affiliated with or
+> endorsed by** the NIFTools project. See [NOTICE.md](NOTICE.md).
 
+This fork keeps NifSkope's file-format behavior intact while modernizing the
+project around it: a **CMake** build system, a **Qt 6** port, and **GitHub Actions**
+CI/CD with automatic release artifacts. See
+[MODERNIZATION_REPORT.md](MODERNIZATION_REPORT.md) for the full list of changes.
 
-### Discussion & Help
+---
 
-- Visit the [NifTools Discord](https://discord.gg/ZFjdN4x). To receive support use the #software channel.
-- Visit the [NifTools.org](https://forum.niftools.org/) forum. To receive support for NifSkope please use the [Support subforum](https://forum.niftools.org/24-nifskope/).
+## Supported file types
 
-### Issues
+| Format | Extensions |
+|--------|-----------|
+| NIF (NetImmerse/Gamebryo) | `.nif`, `.btr`, `.bto`, `.nifcache`, `.texcache`, `.pcpatch`, `.jmi` |
+| KF (Keyframe animation) | `.kf`, `.kfa` |
+| KFM (Keyframe motion) | `.kfm` |
+| Textures | `.dds` (and via Qt image plugins) |
+| Archives | Bethesda `.bsa` / `.ba2` (browse & extract) |
+| Import / export | Wavefront `.obj`, `.3ds`, COLLADA `.dae` |
 
-Anyone can [report issues at GitHub](https://github.com/niftools/nifskope/issues) or in the NifTools.org [Support subforum](https://forum.niftools.org/24-nifskope/).
+NIF/KF/KFM format definitions are provided by the bundled
+[`nifdocsys`](https://github.com/niftools/nifdocsys) data (`nif.xml`, `kfm.xml`).
 
+## Supported platforms
 
-### Contribute
+- **Windows** 10/11 (x64) — MSVC or MinGW
+- **Linux** (x64) — GCC/Clang, requires an OpenGL driver
+- **macOS** — Apple Clang
 
-You can fork the latest source from [GitHub](https://github.com/niftools/nifskope). See [Fork A Repo](https://help.github.com/articles/fork-a-repo) on how to send your contributions upstream. To grab all submodules, make sure to use `--recursive` like so:
+Requires **Qt 6** (6.2 or newer) at build time.
 
+---
+
+## Building
+
+Quick start (any platform with CMake ≥ 3.21, Ninja, a C++20 compiler and Qt 6):
+
+```bash
+git clone --recursive https://github.com/uintptr/uintSkope.git
+cd uintSkope
+
+# If you cloned without --recursive:
+git submodule update --init --recursive
+
+cmake --preset release      # Qt 6 must be discoverable (CMAKE_PREFIX_PATH or PATH)
+cmake --build --preset release
+ctest --preset release --output-on-failure
 ```
-git clone --recursive git://github.com/<YOUR_USERNAME>/nifskope.git
+
+Run the result, or produce a self-contained install tree:
+
+```bash
+cmake --install out/build/release --prefix dist
 ```
 
-For information about development:
+On Windows/macOS this stages the executable together with its Qt runtime
+(`windeployqt`/`macdeployqt`) and the data files, ready to zip.
 
-- Visit our [Discord #dev channel](https://discord.gg/zvWZrrJ).
-- Visit the NifTools.org [development subforum](https://forum.niftools.org/6-nifskope-development/).
-- Refer to our [GitHub wiki](https://github.com/niftools/nifskope/wiki#wiki-development) for information on compilation.  
+See **[BUILDING.md](BUILDING.md)** for detailed per-platform instructions,
+Qt installation notes, and troubleshooting.
 
+### Build options
 
-### Miscellaneous
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `UINTSKOPE_BUILD_TESTS` | `ON` | Build the non-GUI smoke tests |
+| `UINTSKOPE_ENABLE_WARNINGS` | `ON` | `-Wall -Wextra` / `/W4 /permissive-` on first-party code |
+| `UINTSKOPE_WARNINGS_AS_ERRORS` | `OFF` | Treat warnings as errors |
+| `UINTSKOPE_USE_SYSTEM_ZLIB` | `OFF` | Use system zlib instead of the vendored copy |
+| `UINTSKOPE_USE_SYSTEM_QHULL` | `OFF` | Use system qhull (experimental — see BUILDING.md) |
 
-Refer to these other documents in your installation folder or at the links provided:
+---
 
-## [TROUBLESHOOTING](https://github.com/niftools/nifskope/blob/develop/TROUBLESHOOTING.md)
+## Relationship to NifSkope
 
-## [CHANGELOG](https://github.com/niftools/nifskope/blob/develop/CHANGELOG.md)
+uintSkope is a fork of NifSkope at `niftools/nifskope`. **All original copyright,
+license headers, and contributor credits are preserved unchanged.** The NIF file
+format and NifSkope itself are the work of the NIFTools community
+([forum](https://forum.niftools.org), [Discord](https://discord.gg/ZFjdN4x)).
 
-## [CONTRIBUTORS](https://github.com/niftools/nifskope/blob/develop/CONTRIBUTORS.md)
- 
-## [LICENSE](https://github.com/niftools/nifskope/blob/develop/LICENSE.md)
+For questions about the **NIF format**, please use the upstream NIFTools channels.
+For issues specific to **uintSkope** (the build system, packaging, Qt 6 behavior),
+use this repository's issue tracker.
 
+## License & attribution
+
+- uintSkope retains NifSkope's **BSD license** — see [LICENSE.md](LICENSE.md).
+- Contributors — see [CONTRIBUTORS.md](CONTRIBUTORS.md).
+- Third-party components & attribution — see [NOTICE.md](NOTICE.md).
+- Troubleshooting — see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+- Changes — see [CHANGELOG.md](CHANGELOG.md).

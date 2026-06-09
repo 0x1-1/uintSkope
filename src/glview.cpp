@@ -66,16 +66,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QOpenGLFramebufferObject>
-#include <QGLFormat>
+#include <QSurfaceFormat>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 
-// TODO: Determine the necessity of this
-// Appears to be used solely for gluErrorString
-// There may be some Qt alternative
-#ifdef __APPLE__
-	#include <OpenGL/glu.h>
-#else
-	#include <GL/glu.h>
-#endif
+// GLU (gluErrorString/gluProject/...) — windows.h-aware include wrapper.
+#include "gl/glu_include.h"
 
 
 // NOTE: The FPS define is a frame limiter,
@@ -110,10 +106,10 @@ GLGraphicsView::~GLGraphicsView() {}
 
 GLView * GLView::create( NifSkope * window )
 {
-	QGLFormat fmt;
+	QSurfaceFormat fmt;
 	static QList<QPointer<GLView> > views;
 
-	QGLWidget * share = nullptr;
+	GLView * share = nullptr;
 	for ( const QPointer<GLView>& v : views ) {
 		if ( v )
 			share = v;
@@ -125,60 +121,39 @@ GLView * GLView::create( NifSkope * window )
 	// All new windows after the first window will share a format
 	if ( share ) {
 		fmt = share->format();
-	} else {
-		fmt.setSampleBuffers( aa > 0 );
 	}
-	
-	// OpenGL version
+
+	// OpenGL version. A compatibility profile is required: the renderer relies on
+	// legacy fixed-function GL (glBegin/glMatrixMode/...), which is unavailable in
+	// a core profile.
 	fmt.setVersion( 2, 1 );
-	// Ignored if version < 3.2
-	//fmt.setProfile(QGLFormat::CoreProfile);
+	fmt.setProfile( QSurfaceFormat::CompatibilityProfile );
 
-	// V-Sync
+	// V-Sync + double buffering
 	fmt.setSwapInterval( 1 );
-	fmt.setDoubleBuffer( true );
+	fmt.setSwapBehavior( QSurfaceFormat::DoubleBuffer );
 
-	fmt.setSamples( std::pow( aa, 2 ) );
+	fmt.setSamples( aa > 0 ? std::pow( aa, 2 ) : 0 );
 
-	fmt.setDirectRendering( true );
-	fmt.setRgba( true );
-
-	views.append( QPointer<GLView>( new GLView( fmt, window, share ) ) );
+	// Cross-window context/texture sharing is enabled globally in main() via
+	// Qt::AA_ShareOpenGLContexts, so no per-widget share object is needed.
+	views.append( QPointer<GLView>( new GLView( fmt, window ) ) );
 
 	return views.last();
 }
 
-GLView::GLView( const QGLFormat & format, QWidget * p, const QGLWidget * shareWidget )
-	: QGLWidget( format, p, shareWidget )
+GLView::GLView( const QSurfaceFormat & format, QWidget * p )
+	: QOpenGLWidget( p )
 {
+	// QOpenGLWidget creates its context lazily; the format must be set before the
+	// widget is first shown. The context/functions are resolved later, in
+	// initializeGL(), and propagated to the scene's renderer there.
+	setFormat( format );
+
 	setFocusPolicy( Qt::ClickFocus );
-	//setAttribute( Qt::WA_PaintOnScreen );
-	//setAttribute( Qt::WA_NoSystemBackground );
 	setAutoFillBackground( false );
 	setAcceptDrops( true );
 	setContextMenuPolicy( Qt::CustomContextMenu );
-
-	// Manually handle the buffer swap
-	// Fixes bug with QGraphicsView and double buffering
-	//	Input becomes sluggish and CPU usage doubles when putting GLView
-	//	inside a QGraphicsView.
-	setAutoBufferSwap( false );
-
-	// Make the context current on this window
-	makeCurrent();
-
-	// Create an OpenGL context
-	glContext = context()->contextHandle();
-
-	// Obtain a functions object and resolve all entry points
-	glFuncs = glContext->functions();
-
-	if ( !glFuncs ) {
-		Message::critical( this, tr( "Could not obtain OpenGL functions" ) );
-		exit( 1 );
-	}
-
-	glFuncs->initializeOpenGLFunctions();
 
 	view = ViewDefault;
 	animState = AnimEnabled;
@@ -226,6 +201,11 @@ GLView::~GLView()
 
 	delete textures;
 	delete scene;
+}
+
+void GLView::qglClearColor( const QColor & color )
+{
+	glClearColor( color.redF(), color.greenF(), color.blueF(), color.alphaF() );
 }
 
 void GLView::updateSettings()
@@ -289,7 +269,23 @@ void GLView::updateAnimationState( bool checked )
 void GLView::initializeGL()
 {
 	GLenum err;
-	
+
+	// Qt 6: QOpenGLWidget only has a valid context here. Resolve it, initialize
+	// the function entry points, and hand the live context/functions to the
+	// renderer (which was constructed with nullptrs in the GLView ctor).
+	glContext = context();
+	glFuncs = glContext ? glContext->functions() : nullptr;
+
+	if ( !glFuncs ) {
+		Message::critical( this, tr( "Could not obtain OpenGL functions" ) );
+		return;
+	}
+
+	glFuncs->initializeOpenGLFunctions();
+
+	if ( scene && scene->renderer )
+		scene->renderer->setContext( glContext, glFuncs );
+
 	if ( scene->options & Scene::DoMultisampling ) {
 		if ( !glContext->hasExtension( "GL_EXT_framebuffer_multisample" ) ) {
 			scene->options &= ~Scene::DoMultisampling;
@@ -681,8 +677,7 @@ void GLView::paintGL()
 
 	emit paintUpdate();
 
-	// Manually handle the buffer swap
-	swapBuffers();
+	// Qt 6: QOpenGLWidget composites its own framebuffer; no manual swapBuffers().
 
 #ifdef USE_GL_QPAINTER
 	painter.end();
@@ -1513,7 +1508,9 @@ void GLView::saveImage()
 			fbo.bind();
 
 			update();
-			updateGL();
+			// Qt 6: QGLWidget::update() removed; update() schedules the repaint.
+			// NOTE: supersampled screenshot-to-FBO capture needs runtime validation
+			// under QOpenGLWidget (renders to its own framebuffer).
 
 			fbo.release();
 
@@ -1715,7 +1712,7 @@ void GLView::mouseMoveEvent( QMouseEvent * event )
 
 	if ( event->buttons() & Qt::LeftButton && !kbd[Qt::Key_Space] ) {
 		mouseRot += Vector3( dy * .5, 0, dx * .5 );
-	} else if ( (event->buttons() & Qt::MidButton) || (event->buttons() & Qt::LeftButton && kbd[Qt::Key_Space]) ) {
+	} else if ( (event->buttons() & Qt::MiddleButton) || (event->buttons() & Qt::LeftButton && kbd[Qt::Key_Space]) ) {
 		float d = axis / (qMax( width(), height() ) + 1);
 		mouseMov += Vector3( dx * d, -dy * d, 0 );
 	} else if ( event->buttons() & Qt::RightButton ) {
@@ -1776,7 +1773,7 @@ void GLView::mouseReleaseEvent( QMouseEvent * event )
 		fbo.bind();
 
 		update();
-		updateGL();
+		update();
 
 		fbo.release();
 
@@ -1796,9 +1793,9 @@ void GLView::mouseReleaseEvent( QMouseEvent * event )
 void GLView::wheelEvent( QWheelEvent * event )
 {
 	if ( view == ViewWalk )
-		mouseMov += Vector3( 0, 0, event->delta() );
+		mouseMov += Vector3( 0, 0, event->angleDelta().y() );
 	else
-		setDistance( Dist * (event->delta() < 0 ? 1.0 / 0.8 : 0.8) );
+		setDistance( Dist * (event->angleDelta().y() < 0 ? 1.0 / 0.8 : 0.8) );
 }
 
 
@@ -1843,7 +1840,7 @@ void GLGraphicsView::drawBackground( QPainter * painter, const QRectF & rect )
 
 	GLView * glWidget = qobject_cast<GLView *>(viewport());
 	if ( glWidget ) {
-		glWidget->updateGL();
+		glWidget->update();
 	}
 
 	//QGraphicsView::drawBackground( painter, rect );

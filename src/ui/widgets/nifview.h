@@ -46,7 +46,7 @@ class NifTreeView final : public QTreeView
 
 public:
 	//! Constructor
-	NifTreeView( QWidget * parent = 0, Qt::WindowFlags flags = 0 );
+	NifTreeView( QWidget * parent = nullptr, Qt::WindowFlags flags = {} );
 	//! Destructor
 	~NifTreeView();
 
@@ -93,7 +93,8 @@ protected:
 	void drawBranches( QPainter * painter, const QRect & rect, const QModelIndex & index ) const override final;
 	void keyPressEvent( QKeyEvent * e ) override final;
 
-	QStyleOptionViewItem viewOptions() const override final;
+	// Qt 6: QAbstractItemView::viewOptions() was replaced by initViewItemOption().
+	void initViewItemOption( QStyleOptionViewItem * option ) const override final;
 
 	void autoExpand( const QModelIndex & index );
 

@@ -39,6 +39,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QLocale>
 #include <QModelIndex>
 #include <QSet>
+#include <QStringList>
 #include <QUndoCommand>
 
 #include <memory>
@@ -78,7 +79,6 @@ class QActionGroup;
 class QComboBox;
 class QGraphicsScene;
 class QProgressBar;
-class QStringList;
 class QTimer;
 class QTreeView;
 class QUdpSocket;

@@ -1,5 +1,31 @@
  == CHANGELOG ==
 
+## uintSkope (fork of NifSkope)
+
+uintSkope is a modernization fork of NifSkope. The NIF/KF/KFM file-format behavior
+is unchanged; the changes below are to the build, tooling and platform layer. See
+MODERNIZATION_REPORT.md for full detail.
+
+### Unreleased
+
+- **Build system:** replaced qmake with a modern CMake build (`CMakeLists.txt`,
+  `CMakePresets.json`, `cmake/` modules). C++20.
+- **Qt 6 port:** ported from Qt 5 to Qt 6 — `QGLWidget` → `QOpenGLWidget`,
+  removed-API fixes (`QXmlDefaultHandler` SAX → `QXmlStreamReader`,
+  `QModelIndex::child()`, `QRegExp`, `QMatrix`, `QMetaType::registerComparators`,
+  `viewOptions()`, and many smaller renames). Builds and runs against Qt 6.10.
+- **Branding:** application/executable renamed to **uintSkope** (window title,
+  About dialog, `--version`). Internal class and file names (NifModel, NifValue,
+  …) are unchanged. All upstream license, attribution and credits preserved.
+- **CI/CD:** GitHub Actions replace Travis/AppVeyor — matrix CI
+  (Windows/Linux/macOS) and an automated release workflow with packaged artifacts
+  and SHA-256 checksums.
+- **Packaging:** CMake install produces a flat, self-contained layout
+  (windeployqt/macdeployqt-bundled on Windows/macOS).
+- **Tests:** added non-GUI smoke tests (version logic, NIF/KFM XML well-formedness).
+
+---
+
 **NOTE: This changelog is not maintained for prerelease versions**
 
 You may view the changes since 1.1.3 here: https://github.com/jonwd7/nifskope/releases

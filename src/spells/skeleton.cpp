@@ -147,7 +147,7 @@ public:
 
 		if ( iNames.isValid() )
 			for ( int n = 0; n < nif->rowCount( iNames ); n++ ) {
-				QModelIndex iBone = nif->getBlock( nif->getLink( iNames.child( n, 0 ) ), "NiNode" );
+				QModelIndex iBone = nif->getBlock( nif->getLink( getChildIndex(iNames,  n, 0 ) ), "NiNode" );
 
 				if ( iBone.isValid() )
 					names.append( nif->get<QString>( iBone, "Name" ) );
@@ -171,7 +171,7 @@ public:
 		t.writeBack( nif, iSkinData );
 
 		for ( int b = 0; b < nif->rowCount( iBones ) && b < names.count(); b++ ) {
-			QModelIndex iBone = iBones.child( b, 0 );
+			QModelIndex iBone = getChildIndex(iBones,  b, 0 );
 
 			t = Transform( nif, iBone );
 
@@ -234,18 +234,8 @@ public:
 
 //REGISTER_SPELL( spScanSkeleton )
 
-//! Unknown; unused?
-template <> inline bool qMapLessThanKey<Triangle>( const Triangle & s1, const Triangle & s2 )
-{
-	// TODO: This function makes no sense. Doxygen comments seem to think it's unused.
-	int d = 0;
-
-	if ( d == 0 ) d = (s1[0] - s2[0]);
-	if ( d == 0 ) d = (s1[1] - s2[1]);
-	if ( d == 0 ) d = (s1[2] - s2[2]);
-
-	return d < 0;
-}
+// Qt 6: qMapLessThanKey<> is no longer a customization point; QMap<Triangle, ...>
+// now orders via Triangle::operator< (defined in niftypes.h).
 
 //! Rotate a Triangle
 inline void qRotate( Triangle & t )
@@ -352,11 +342,11 @@ public:
 			int numBones = nif->rowCount( iBoneList );
 
 			for ( int bone = 0; bone < numBones; bone++ ) {
-				QModelIndex iVertexWeights = nif->getIndex( iBoneList.child( bone, 0 ), "Vertex Weights" );
+				QModelIndex iVertexWeights = nif->getIndex( getChildIndex(iBoneList,  bone, 0 ), "Vertex Weights" );
 
 				for ( int r = 0; r < nif->rowCount( iVertexWeights ); r++ ) {
-					int vertex = nif->get<int>( iVertexWeights.child( r, 0 ), "Index" );
-					float weight = nif->get<float>( iVertexWeights.child( r, 0 ), "Weight" );
+					int vertex = nif->get<int>( getChildIndex(iVertexWeights,  r, 0 ), "Index" );
+					float weight = nif->get<float>( getChildIndex(iVertexWeights,  r, 0 ), "Weight" );
 
 					if ( vertex >= weights.count() )
 						throw QString( Spell::tr( "bad NiSkinData - vertex count does not match" ) );
@@ -443,10 +433,10 @@ public:
 
 				for ( int s = 0; s < nif->rowCount( iPoints ); s++ ) {
 					QVector<quint16> strip;
-					QModelIndex iStrip = iPoints.child( s, 0 );
+					QModelIndex iStrip = getChildIndex(iPoints,  s, 0 );
 
 					for ( int p = 0; p < nif->rowCount( iStrip ); p++ ) {
-						strip.append( nif->get<int>( iStrip.child( p, 0 ) ) );
+						strip.append( nif->get<int>( getChildIndex(iStrip,  p, 0 ) ) );
 					}
 
 					strips.append( strip );
@@ -464,7 +454,7 @@ public:
 				QModelIndex iPartData = nif->getIndex( iSkinInst, "Partitions" );
 
 				for ( quint32 i = 0; i < nparts; ++i ) {
-					QModelIndex iPart = iPartData.child( i, 0 );
+					QModelIndex iPart = getChildIndex(iPartData,  i, 0 );
 
 					if ( !iPart.isValid() )
 						continue;
@@ -482,7 +472,7 @@ public:
 				iPartData = nif->getIndex( iSkinPart, "Skin Partition Blocks" );
 
 				for ( quint32 i = 0; i < nskinparts; ++i ) {
-					QModelIndex iPart = iPartData.child( i, 0 );
+					QModelIndex iPart = getChildIndex(iPartData,  i, 0 );
 
 					if ( !iPart.isValid() )
 						continue;
@@ -504,10 +494,10 @@ public:
 
 						for ( int s = 0; s < nif->rowCount( iPoints ); s++ ) {
 							QVector<quint16> strip;
-							QModelIndex iStrip = iPoints.child( s, 0 );
+							QModelIndex iStrip = getChildIndex(iPoints,  s, 0 );
 
 							for ( int p = 0; p < nif->rowCount( iStrip ); p++ ) {
-								strip.append( nif->get<int>( iStrip.child( p, 0 ) ) );
+								strip.append( nif->get<int>( getChildIndex(iStrip,  p, 0 ) ) );
 							}
 
 							strips.append( strip );
@@ -532,7 +522,7 @@ public:
 				}
 			}
 
-			QMap<int, int> match;
+			QMultiMap<int, int> match;
 			bool doMatch = true;
 
 			QList<int> tribones;
@@ -588,12 +578,12 @@ public:
 							QVector<Vector3> verts = nif->getArray<Vector3>( iData, "Vertices" );
 
 							for ( int a = 0; a < verts.count(); a++ ) {
-								match.insertMulti( a, a );
+								match.insert( a, a );
 
 								for ( int b = a + 1; b < verts.count(); b++ ) {
 									if ( verts[a] == verts[b] && weights[a] == weights[b] ) {
-										match.insertMulti( a, b );
-										match.insertMulti( b, a );
+										match.insert( a, b );
+										match.insert( b, a );
 									}
 								}
 							}
@@ -809,7 +799,7 @@ public:
 			QList<int> prevPartBones;
 
 			for ( int p = 0; p < parts.count(); p++ ) {
-				QModelIndex iPart = nif->getIndex( iSkinPart, "Skin Partition Blocks" ).child( p, 0 );
+				QModelIndex iPart = getChildIndex( nif->getIndex( iSkinPart, "Skin Partition Blocks" ), p, 0 );
 
 				QList<int> bones = parts[p].bones;
 				std::sort( bones.begin(), bones.end() /*, std::less<int>()*/ );
@@ -818,7 +808,7 @@ public:
 				if ( iBSSkinInstPartData.isValid() ) {
 					if ( bones != prevPartBones ) {
 						prevPartBones = bones;
-						nif->set<uint>( iBSSkinInstPartData.child( p, 0 ), "Part Flag", 257 );
+						nif->set<uint>( getChildIndex(iBSSkinInstPartData,  p, 0 ), "Part Flag", 257 );
 					}
 				}
 
@@ -909,12 +899,12 @@ public:
 				nif->updateArray( iVWeights );
 
 				for ( int v = 0; v < nif->rowCount( iVWeights ); v++ ) {
-					QModelIndex iVertex = iVWeights.child( v, 0 );
+					QModelIndex iVertex = getChildIndex(iVWeights,  v, 0 );
 					nif->updateArray( iVertex );
 					QList<boneweight> list = weights.value( vertices[v] );
 
 					for ( int b = 0; b < maxBones; b++ )
-						nif->set<float>( iVertex.child( b, 0 ), list.count() > b ? list[ b ].second : 0.0 );
+						nif->set<float>( getChildIndex(iVertex,  b, 0 ), list.count() > b ? list[ b ].second : 0.0 );
 				}
 
 				nif->set<int>( iPart, "Has Faces", 1 );
@@ -929,14 +919,14 @@ public:
 					nif->updateArray( iStripLengths );
 
 					for ( int s = 0; s < nif->rowCount( iStripLengths ); s++ )
-						nif->set<int>( iStripLengths.child( s, 0 ), strips.value( s ).count() );
+						nif->set<int>( getChildIndex(iStripLengths,  s, 0 ), strips.value( s ).count() );
 
 					QModelIndex iStrips = nif->getIndex( iPart, "Strips" );
 					nif->updateArray( iStrips );
 
 					for ( int s = 0; s < nif->rowCount( iStrips ); s++ ) {
-						nif->updateArray( iStrips.child( s, 0 ) );
-						nif->setArray<quint16>( iStrips.child( s, 0 ), strips.value( s ) );
+						nif->updateArray( getChildIndex(iStrips,  s, 0 ) );
+						nif->setArray<quint16>( getChildIndex(iStrips,  s, 0 ), strips.value( s ) );
 					}
 				} else {
 					//Clear out any existing strip data that might be left over from an existing Skin Partition
@@ -957,12 +947,12 @@ public:
 				nif->updateArray( iVBones );
 
 				for ( int v = 0; v < nif->rowCount( iVBones ); v++ ) {
-					QModelIndex iVertex = iVBones.child( v, 0 );
+					QModelIndex iVertex = getChildIndex(iVBones,  v, 0 );
 					nif->updateArray( iVertex );
 					QList<boneweight> list = weights.value( vertices[v] );
 
 					for ( int b = 0; b < maxBones; b++ )
-						nif->set<int>( iVertex.child( b, 0 ), list.count() > b ? bones.indexOf( list[ b ].first ) : 0 );
+						nif->set<int>( getChildIndex(iVertex,  b, 0 ), list.count() > b ? bones.indexOf( list[ b ].first ) : 0 );
 				}
 			}
 
@@ -1168,7 +1158,7 @@ public:
 		QModelIndex iBoneMap = nif->getIndex( iSkinInstance, "Bones" );
 
 		for ( int n = 0; n < nif->rowCount( iBoneMap ); n++ ) {
-			QModelIndex iBone = nif->getBlock( nif->getLink( iBoneMap.child( n, 0 ) ), "NiNode" );
+			QModelIndex iBone = nif->getBlock( nif->getLink( getChildIndex(iBoneMap,  n, 0 ) ), "NiNode" );
 
 			if ( skelRoot != nif->getParent( nif->getBlockNumber( iBone ) ) )
 				return iSkinData;
@@ -1187,10 +1177,10 @@ public:
 			Vector3 center;
 			float radius = 0;
 
-			QModelIndex iWeightList = nif->getIndex( iBoneDataList.child( b, 0 ), "Vertex Weights" );
+			QModelIndex iWeightList = nif->getIndex( getChildIndex(iBoneDataList,  b, 0 ), "Vertex Weights" );
 
 			for ( int w = 0; w < nif->rowCount( iWeightList ); w++ ) {
-				int v = nif->get<int>( iWeightList.child( w, 0 ), "Index" );
+				int v = nif->get<int>( getChildIndex(iWeightList,  w, 0 ), "Index" );
 
 				if ( w == 0 ) {
 					mn = verts.value( v );
@@ -1211,7 +1201,7 @@ public:
 			center = ( mn + mx ) / 2;
 			radius = qMax( ( mn - center ).length(), ( mx - center ).length() );
 
-			auto sphIdx = nif->getIndex( iBoneDataList.child( b, 0 ) , "Bounding Sphere" );
+			auto sphIdx = nif->getIndex( getChildIndex(iBoneDataList,  b, 0 ) , "Bounding Sphere" );
 
 			nif->set<Vector3>( sphIdx, "Bounding Sphere Offset", center );
 			nif->set<float>( sphIdx, "Bounding Sphere Radius", radius );
@@ -1387,7 +1377,7 @@ public:
 				return;
 
 			for ( int b = 0; b < nif->rowCount( iBones ); b++ ) {
-				QModelIndex iBone = iBones.child( b, 0 );
+				QModelIndex iBone = getChildIndex(iBones,  b, 0 );
 
 				Transform tlocal( nif, iBone );
 
@@ -1424,7 +1414,7 @@ public:
 
 		if ( iQuats.isValid() ) {
 			for ( int q = 0; q < nif->rowCount( iQuats ); q++ ) {
-				QModelIndex iQuat = iQuats.child( q, 0 );
+				QModelIndex iQuat = getChildIndex(iQuats,  q, 0 );
 
 				Quat value = nif->get<Quat>( iQuat, "Value" );
 				Matrix tlocal;
@@ -1447,7 +1437,7 @@ public:
 
 			if ( iTransKeys.isValid() ) {
 				for ( int k = 0; k < nif->rowCount( iTransKeys ); k++ ) {
-					QModelIndex iKey = iTransKeys.child( k, 0 );
+					QModelIndex iKey = getChildIndex(iTransKeys,  k, 0 );
 
 					Vector3 value = nif->get<Vector3>( iKey, "Value" );
 					value = Vector3( value[0], value[1], -value[2] );

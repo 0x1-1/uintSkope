@@ -7,41 +7,40 @@ AboutDialog::AboutDialog( QWidget * parent )
 
 	setAttribute( Qt::WA_DeleteOnClose );
 
-#ifdef NIFSKOPE_REVISION
-	this->setWindowTitle( tr( "About NifSkope %1 (revision %2)" ).arg( NIFSKOPE_VERSION, NIFSKOPE_REVISION ) );
+#ifdef UINTSKOPE_REVISION
+	this->setWindowTitle( tr( "About uintSkope %1 (revision %2)" ).arg( UINTSKOPE_VERSION, UINTSKOPE_REVISION ) );
 #else
-	this->setWindowTitle( tr( "About NifSkope %1" ).arg( NIFSKOPE_VERSION ) );
+	this->setWindowTitle( tr( "About uintSkope %1" ).arg( UINTSKOPE_VERSION ) );
 #endif
 	QString text = tr( R"rhtml(
-	<p>NifSkope is a tool for opening and editing the NetImmerse file format (NIF).</p>
+	<p><b>uintSkope</b> is a modernized fork of <a href='https://github.com/niftools/nifskope'>NifSkope</a> &mdash;
+	a tool for opening and editing the NetImmerse/Gamebryo file formats (NIF, KF, KFM).</p>
 
-	<p>NifSkope is free software available under a BSD license.
-	The source is available via <a href='https://github.com/niftools/nifskope'>GitHub</a></p>
+	<p>uintSkope is <b>not affiliated with or endorsed by</b> the NIFTools project. It builds upon
+	NifSkope, which is free software available under a BSD license; the original NifSkope source
+	is available via <a href='https://github.com/niftools/nifskope'>GitHub</a>.</p>
 
-	<p>For more information visit the <a href='https://discord.gg/ZFjdN4x'>NifTools Discord</a> or <a href='https://forum.niftools.org'>NifTools forum</a>.<br>
-	To receive support for NifSkope please use the Discord or the 
-	<a href='https://forum.niftools.org/24-nifskope/'>NifSkope Help subforum</a>.</p>
+	<p>NifSkope and the NIF file format are the work of the NIFTools community. For questions about
+	the NIF format, visit the <a href='https://discord.gg/ZFjdN4x'>NifTools Discord</a> or the
+	<a href='https://forum.niftools.org'>NifTools forum</a>.</p>
 
-	<p>The most recent version of NifSkope can be downloaded from the <a href='https://github.com/niftools/nifskope/releases'>
-	official GitHub release page</a>.</p>
-	
-	<p>A detailed changelog and the latest developmental builds of NifSkope 
-	<a href='https://github.com/jonwd7/nifskope/releases'>can be found here</a>.</p>
-	
-	<p>For the decompression of BSA (Version 105) files, NifSkope uses <a href='https://github.com/lz4/lz4'>LZ4</a>:<br>
+	<p>The original NifSkope can be downloaded from its
+	<a href='https://github.com/niftools/nifskope/releases'>official GitHub release page</a>.</p>
+
+	<p>For the decompression of BSA (Version 105) files, uintSkope uses <a href='https://github.com/lz4/lz4'>LZ4</a>:<br>
 	LZ4 Library<br>
 	Copyright (c) 2011-2015, Yann Collet<br>
 	All rights reserved.</p>
 	
-	<p>For the generation of mopp code on Windows builds, NifSkope uses <a href='http://www.havok.com'>Havok(R)</a>:<br>
+	<p>For the generation of mopp code on Windows builds, uintSkope uses <a href='http://www.havok.com'>Havok(R)</a>:<br>
 	Copyright (c) 1999-2008 Havok.com Inc. (and its Licensors).<br>
 	All Rights Reserved.</p>
 	
-	<p>NifSkope uses <a href='http://gli.g-truc.net/'>OpenGL Image (GLI)</a>:<br>
+	<p>uintSkope uses <a href='http://gli.g-truc.net/'>OpenGL Image (GLI)</a>:<br>
 	MIT License<br>
 	Copyright (c) 2010 - 2016 G-Truc Creation</p>
 
-	<p>For the generation of convex hulls, NifSkope uses <a href='http://www.qhull.org'>Qhull</a>:<br>
+	<p>For the generation of convex hulls, uintSkope uses <a href='http://www.qhull.org'>Qhull</a>:<br>
 	Copyright (c) 1993-2015  C.B. Barber and The Geometry Center.<br><center>
 						Qhull, Copyright (c) 1993-2015<br><br>
                     

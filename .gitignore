@@ -1,3 +1,18 @@
+# --- Modern CMake build (uintSkope) ---
+# All CMake build/install output goes under out/ (see CMakePresets.json).
+/out/
+# Machine-specific presets (Qt path, compilers) — never committed.
+CMakeUserPresets.json
+# In-source CMake artifacts (should not occur with out-of-source builds, but just in case).
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+*.user
+# NOTE: /build/ is intentionally NOT ignored. In this repository build/ is tracked
+# content: the nifdocsys submodule (build/docsys with nif.xml/kfm.xml needed at
+# runtime), build/VERSION, and build/doxygen. Do not add /build/ here.
+
 # Generated
 .moc/
 .obj/

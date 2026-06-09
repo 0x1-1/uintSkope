@@ -33,8 +33,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "message.h"
 #include "model/kfmmodel.h"
 
-#include <QtXml> // QXmlDefaultHandler Inherited
+#include <QXmlStreamReader> // Qt 6: replaces the removed SAX API
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QMessageBox>
 
 #define err( X ) { errorStr = X; return false; }
@@ -44,7 +46,17 @@ QReadWriteLock KfmModel::XMLlock;
 QList<quint32>                  KfmModel::supportedVersions;
 QHash<QString, NifBlockPtr>        KfmModel::compounds;
 
-class KfmXmlHandler final : public QXmlDefaultHandler
+//! Qt 6: stand-in for the removed QXmlAttributes, backed by QXmlStreamAttributes.
+class XmlAttributes
+{
+public:
+	explicit XmlAttributes( const QXmlStreamAttributes & a ) : attrs( a ) {}
+	QString value( const QString & name ) const { return attrs.value( name ).toString(); }
+private:
+	const QXmlStreamAttributes & attrs;
+};
+
+class KfmXmlHandler final
 {
 	Q_DECLARE_TR_FUNCTIONS( KfmXmlHandler )
 
@@ -73,7 +85,7 @@ public:
 		return stack[--depth];
 	}
 
-	bool startElement( const QString &, const QString &, const QString & name, const QXmlAttributes & list ) override final
+	bool startElement( const QString &, const QString &, const QString & name, const XmlAttributes & list )
 	{
 		if ( depth >= 8 )
 			err( tr( "error maximum nesting level exceeded" ) );
@@ -182,7 +194,7 @@ public:
 		return true;
 	}
 
-	bool endElement( const QString &, const QString &, const QString & name ) override final
+	bool endElement( const QString &, const QString &, const QString & name )
 	{
 		if ( depth <= 0 )
 			err( tr( "mismatching end element tag for element " ) + name );
@@ -225,7 +237,7 @@ public:
 		return data.temp().isEmpty() || NifValue::type( data.temp() ) != NifValue::tNone || data.temp() == "TEMPLATE";
 	}
 
-	bool endDocument() override final
+	bool endDocument()
 	{
 		// make a rough check of the maps
 		for ( const QString& key : KfmModel::compounds.keys() ) {
@@ -244,17 +256,9 @@ public:
 		return true;
 	}
 
-	QString errorString() const override final
+	QString errorString() const
 	{
 		return errorStr;
-	}
-	bool fatalError( const QXmlParseException & exception ) override final
-	{
-		if ( errorStr.isEmpty() )
-			errorStr = tr( "Syntax error" );
-
-		errorStr.prepend( tr( "%1 XML parse error (line %2): " ).arg( "KFM" ).arg( exception.lineNumber() ) );
-		return false;
 	}
 };
 
@@ -300,17 +304,39 @@ QString KfmModel::parseXmlDescription( const QString & filename )
 		return tr( "Couldn't open KFM XML description file: %1" ).arg( filename );
 
 	KfmXmlHandler handler;
-	QXmlSimpleReader reader;
-	reader.setContentHandler( &handler );
-	reader.setErrorHandler( &handler );
-	QXmlInputSource source( &f );
-	reader.parse( source );
+	QXmlStreamReader reader( &f );
 
-	if ( !handler.errorString().isEmpty() ) {
+	auto fail = []( const QString & msg ) -> QString {
 		compounds.clear();
 		supportedVersions.clear();
+		return msg;
+	};
+
+	// Qt 6 pull-parse loop dispatching to the (unchanged) handler. KFM XML has no
+	// character data, so no characters() callback is needed.
+	while ( !reader.atEnd() ) {
+		bool ok = true;
+		switch ( reader.readNext() ) {
+		case QXmlStreamReader::StartElement:
+			ok = handler.startElement( QString(), QString(), reader.name().toString(), XmlAttributes( reader.attributes() ) );
+			break;
+		case QXmlStreamReader::EndElement:
+			ok = handler.endElement( QString(), QString(), reader.name().toString() );
+			break;
+		default:
+			break;
+		}
+
+		if ( !ok )
+			return fail( tr( "KFM XML parse error (line %1): %2" ).arg( reader.lineNumber() ).arg( handler.errorString() ) );
 	}
 
-	return handler.errorString();
+	if ( reader.hasError() )
+		return fail( tr( "KFM XML syntax error (line %1): %2" ).arg( reader.lineNumber() ).arg( reader.errorString() ) );
+
+	if ( !handler.endDocument() )
+		return fail( handler.errorString() );
+
+	return QString();
 }
 

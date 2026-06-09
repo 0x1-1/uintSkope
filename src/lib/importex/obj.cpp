@@ -77,7 +77,7 @@ static void writeData( const NifModel * nif, const QModelIndex & iData, QTextStr
 		if ( !iUV.isValid() )
 			iUV = nif->getIndex( iData, "UV Sets 2" );
 
-		QVector<Vector2> texco = nif->getArray<Vector2>( iUV.child( 0, 0 ) );
+		QVector<Vector2> texco = nif->getArray<Vector2>( getChildIndex(iUV,  0, 0 ) );
 		foreach( Vector2 t, texco )
 		{
 			obj << "vt " << t[0] << " " << 1.0 - t[1] << "\r\n";
@@ -102,7 +102,7 @@ static void writeData( const NifModel * nif, const QModelIndex & iData, QTextStr
 			QVector<QVector<quint16> > strips;
 
 			for ( int r = 0; r < nif->rowCount( iPoints ); r++ )
-				strips.append( nif->getArray<quint16>( iPoints.child( r, 0 ) ) );
+				strips.append( nif->getArray<quint16>( getChildIndex(iPoints,  r, 0 ) ) );
 
 			tris = triangulate( strips );
 		} else {
@@ -244,8 +244,8 @@ static void writeShape( const NifModel * nif, const QModelIndex & iShape, QTextS
 			map_Kd = TexCache::find( nif->get<QString>( iProp, "Source Texture" ), nif->getFolder() );
 		} else if ( nif->isNiBlock( iProp, { "BSShaderPPLightingProperty", "Lighting30ShaderProperty", "BSLightingShaderProperty" } ) ) {
 			QModelIndex iArray = nif->getIndex( nif->getBlock( nif->getLink( iProp, "Texture Set" ) ), "Textures" );
-			map_Kd = TexCache::find( nif->get<QString>( iArray.child( 0, 0 ) ), nif->getFolder() );
-			map_Kn = TexCache::find( nif->get<QString>( iArray.child( 1, 0 ) ), nif->getFolder() );
+			map_Kd = TexCache::find( nif->get<QString>( getChildIndex(iArray,  0, 0 ) ), nif->getFolder() );
+			map_Kn = TexCache::find( nif->get<QString>( getChildIndex(iArray,  1, 0 ) ), nif->getFolder() );
 
 			auto iSpec = nif->getIndex( iProp, "Specular Color" );
 			if ( iSpec.isValid() )
@@ -342,8 +342,8 @@ static void writeParent( const NifModel * nif, const QModelIndex & iNode, QTextS
 							QModelIndex iTris = nif->getIndex( iData, "Triangles" );
 
 							for ( int t = 0; t < nif->rowCount( iTris ); t++ ) {
-								Triangle tri = nif->get<Triangle>( iTris.child( t, 0 ), "Triangle" );
-								Vector3 n = nif->get<Vector3>( iTris.child( t, 0 ), "Normal" );
+								Triangle tri = nif->get<Triangle>( getChildIndex(iTris,  t, 0 ), "Triangle" );
+								Vector3 n = nif->get<Vector3>( getChildIndex(iTris,  t, 0 ), "Normal" );
 
 								Vector3 a = verts.value( tri[0] );
 								Vector3 b = verts.value( tri[1] );
@@ -370,7 +370,7 @@ static void writeParent( const NifModel * nif, const QModelIndex & iNode, QTextS
 					QModelIndex iStrips = nif->getIndex( iShape, "Strips Data" );
 
 					for ( int r = 0; r < nif->rowCount( iStrips ); r++ )
-						writeData( nif, nif->getBlock( nif->getLink( iStrips.child( r, 0 ) ), "NiTriStripsData" ), obj, ofs, t * bt );
+						writeData( nif, nif->getBlock( nif->getLink( getChildIndex(iStrips,  r, 0 ) ), "NiTriStripsData" ), obj, ofs, t * bt );
 				}
 			}
 		}
@@ -519,7 +519,7 @@ static void readMtlLib( const QString & fname, QMap<QString, ObjMaterial> & omat
 	while ( !smtl.atEnd() ) {
 		QString line = smtl.readLine();
 
-		QStringList t = line.split( " ", QString::SkipEmptyParts );
+		QStringList t = line.split( " ", Qt::SkipEmptyParts );
 
 		if ( t.value( 0 ) == "newmtl" ) {
 			if ( !mtlid.isEmpty() )
@@ -563,7 +563,7 @@ static void addLink( NifModel * nif, const QModelIndex & iBlock, const QString &
 	int numIndices = nif->get<int>( iSize );
 	nif->set<int>( iSize, numIndices + 1 );
 	nif->updateArray( iArray );
-	nif->setLink( iArray.child( numIndices, 0 ), link );
+	nif->setLink( getChildIndex(iArray,  numIndices, 0 ), link );
 }
 
 void importObj( NifModel * nif, const QModelIndex & index )
@@ -680,7 +680,7 @@ void importObj( NifModel * nif, const QModelIndex & index )
 		// parse each line of the file
 		QString line = sobj.readLine();
 
-		QStringList t = line.split( " ", QString::SkipEmptyParts );
+		QStringList t = line.split( " ", Qt::SkipEmptyParts );
 
 		if ( t.value( 0 ) == "mtllib" ) {
 			readMtlLib( fname.left( qMax( fname.lastIndexOf( "/" ), fname.lastIndexOf( "\\" ) ) + 1 ) + t.value( 1 ), omaterials );
@@ -945,8 +945,8 @@ void importObj( NifModel * nif, const QModelIndex & index )
 				iTexCo = nif->getIndex( iData, "UV Sets 2" );
 
 			nif->updateArray( iTexCo );
-			nif->updateArray( iTexCo.child( 0, 0 ) );
-			nif->setArray<Vector2>( iTexCo.child( 0, 0 ), texco );
+			nif->updateArray( getChildIndex(iTexCo,  0, 0 ) );
+			nif->setArray<Vector2>( getChildIndex(iTexCo,  0, 0 ), texco );
 
 			nif->set<int>( iData, "Has Triangles", 1 );
 			nif->set<int>( iData, "Num Triangles", triangles.count() );
@@ -1069,8 +1069,8 @@ void importObj( NifModel * nif, const QModelIndex & index )
 				int x = 0;
 				int z = 0;
 				foreach ( QVector<quint16> strip, strips ) {
-					nif->set<int>( iLengths.child( x, 0 ), strip.count() );
-					QModelIndex iStrip = iPoints.child( x, 0 );
+					nif->set<int>( getChildIndex(iLengths,  x, 0 ), strip.count() );
+					QModelIndex iStrip = getChildIndex(iPoints,  x, 0 );
 					nif->updateArray( iStrip );
 					nif->setArray<quint16>( iStrip, strip );
 					x++;

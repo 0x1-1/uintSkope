@@ -756,7 +756,7 @@ QString BSA::owner( const QString & ) const
 // see bsa.h
 QDateTime BSA::fileTime( const QString & ) const
 {
-	return bsaInfo.created( );
+	return bsaInfo.birthTime();
 }
 
 bool BSA::scan( const BSA::BSAFolder * folder, QStandardItem * item, QString path )
@@ -844,17 +844,17 @@ void BSAProxyModel::setFilterByNameOnly( bool nameOnly )
 {
 	filterByNameOnly = nameOnly;
 
-	setFilterRegExp( filterRegExp() );
+	setFilterRegularExpression( filterRegularExpression() );
 }
 
 void BSAProxyModel::resetFilter()
 {
-	setFilterRegExp( QRegExp( "*", Qt::CaseInsensitive, QRegExp::Wildcard ) );
+	setFilterRegularExpression( QRegularExpression::fromWildcard( QStringLiteral("*"), Qt::CaseInsensitive ) );
 }
 
 bool BSAProxyModel::filterAcceptsRow( int sourceRow, const QModelIndex & sourceParent ) const
 {
-	if ( !filterRegExp().isEmpty() ) {
+	if ( !filterRegularExpression().pattern().isEmpty() ) {
 		
 		QModelIndex sourceIndex0 = sourceModel()->index( sourceRow, 0, sourceParent );
 		QModelIndex sourceIndex1 = sourceModel()->index( sourceRow, 1, sourceParent );
@@ -877,7 +877,7 @@ bool BSAProxyModel::filterAcceptsRow( int sourceRow, const QModelIndex & sourceP
 				}
 			}
 
-			bool stringMatch = (filterByNameOnly) ? key0.contains( filterRegExp() ) : key1.contains( filterRegExp() );
+			bool stringMatch = (filterByNameOnly) ? key0.contains( filterRegularExpression() ) : key1.contains( filterRegularExpression() );
 
 			return typeMatch && stringMatch;
 		}
@@ -891,8 +891,8 @@ bool BSAProxyModel::lessThan( const QModelIndex & left, const QModelIndex & righ
 	QString leftString = sourceModel()->data( left ).toString();
 	QString rightString = sourceModel()->data( right ).toString();
 
-	QModelIndex leftChild = left.child( 0, 0 );
-	QModelIndex rightChild = right.child( 0, 0 );
+	QModelIndex leftChild = left.model()->index( 0, 0, left );
+	QModelIndex rightChild = right.model()->index( 0, 0, right );
 
 	if ( !leftChild.isValid() && rightChild.isValid() )
 		return false;

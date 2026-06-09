@@ -36,6 +36,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <QStringList>
 
+// GLU (gluErrorString) — windows.h-aware include wrapper.
+#include "gl/glu_include.h"
+
 
 //! @file niftypes.cpp Type functions
 

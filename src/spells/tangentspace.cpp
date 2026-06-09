@@ -96,7 +96,7 @@ QModelIndex spTangentSpace::cast( NifModel * nif, const QModelIndex & iBlock )
 		if ( !iTexCo.isValid() )
 			iTexCo = nif->getIndex( iData, "UV Sets 2" );
 
-		iTexCo = iTexCo.child( 0, 0 );
+		iTexCo = getChildIndex(iTexCo,  0, 0 );
 		texco = nif->getArray<Vector2>( iTexCo );
 	}
 
@@ -108,7 +108,7 @@ QModelIndex spTangentSpace::cast( NifModel * nif, const QModelIndex & iBlock )
 		QVector<QVector<quint16> > strips;
 
 		for ( int r = 0; r < nif->rowCount( iPoints ); r++ )
-			strips.append( nif->getArray<quint16>( iPoints.child( r, 0 ) ) );
+			strips.append( nif->getArray<quint16>( getChildIndex(iPoints,  r, 0 ) ) );
 
 		triangles = triangulate( strips );
 	} else if ( nif->getUserVersion2() < 100 ) {
@@ -119,7 +119,7 @@ QModelIndex spTangentSpace::cast( NifModel * nif, const QModelIndex & iBlock )
 			auto numParts = nif->get<int>( iPartBlock, "Num Skin Partition Blocks" );
 			auto iParts = nif->getIndex( iPartBlock, "Partition" );
 			for ( int i = 0; i < numParts; i++ )
-				triangles << nif->getArray<Triangle>( iParts.child( i, 0 ), "Triangles" );
+				triangles << nif->getArray<Triangle>( getChildIndex(iParts,  i, 0 ), "Triangles" );
 		} else {
 			triangles = nif->getArray<Triangle>( iShape, "Triangles" );
 		}
@@ -271,7 +271,7 @@ QModelIndex spTangentSpace::cast( NifModel * nif, const QModelIndex & iBlock )
 				int numlinks = nif->get<int>( iNumExtras );
 				nif->set<int>( iNumExtras, numlinks + 1 );
 				nif->updateArray( iExtras );
-				nif->setLink( iExtras.child( numlinks, 0 ), nif->getBlockNumber( iTSpace ) );
+				nif->setLink( getChildIndex(iExtras,  numlinks, 0 ), nif->getBlockNumber( iTSpace ) );
 			}
 		}
 

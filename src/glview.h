@@ -35,7 +35,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "gl/glscene.h"
 
-#include <QGLWidget> // Inherited
+#include <QOpenGLWidget> // Inherited
+#include <QColor>
 #include <QGraphicsView>
 #include <QDateTime>
 #include <QPersistentModelIndex>
@@ -49,14 +50,14 @@ class NifSkope;
 class NifModel;
 class GLGraphicsView;
 
-class QGLFormat;
+class QSurfaceFormat;
 class QOpenGLContext;
 class QOpenGLFunctions;
 class QTimer;
 
 
 //! The main [Viewport](@ref viewport_details) class
-class GLView final : public QGLWidget
+class GLView final : public QOpenGLWidget
 {
 	Q_OBJECT
 
@@ -64,15 +65,20 @@ class GLView final : public QGLWidget
 	friend class GLGraphicsView;
 
 private:
-	GLView( const QGLFormat & format, QWidget * parent, const QGLWidget * shareWidget = 0 );
+	// Qt 6: QOpenGLWidget has no format/share constructor; the format is applied
+	// via setFormat() and context sharing is global (Qt::AA_ShareOpenGLContexts).
+	GLView( const QSurfaceFormat & format, QWidget * parent );
 	~GLView();
+
+	//! Qt 6 replacement for the removed QGLWidget::qglClearColor() convenience.
+	void qglClearColor( const QColor & color );
 
 public:
 	//! Static instance
 	static GLView * create( NifSkope * );
 
-	QOpenGLContext * glContext;
-	QOpenGLFunctions * glFuncs;
+	QOpenGLContext * glContext = nullptr;
+	QOpenGLFunctions * glFuncs = nullptr;
 
 	float brightness = 1.0;
 	float ambient = 0.375;

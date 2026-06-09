@@ -34,8 +34,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "data/niftypes.h"
 #include "model/nifmodel.h"
 
-#include <QtXml> // QXmlDefaultHandler Inherited
+#include <QXmlStreamReader> // Qt 6: replaces the removed SAX API (QXmlDefaultHandler etc.)
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QMessageBox>
 
 
@@ -51,8 +53,23 @@ QHash<QString, NifBlockPtr> NifModel::fixedCompounds;
 QHash<QString, NifBlockPtr> NifModel::blocks;
 QMap<quint32, NifBlockPtr> NifModel::blockHashes;
 
+//! Qt 6: minimal stand-in for the removed QXmlAttributes, backed by the
+//! QXmlStreamReader attributes and exposing the value(name) -> QString API the
+//! handler relies on. Keeps the handler bodies unchanged.
+class XmlAttributes
+{
+public:
+	explicit XmlAttributes( const QXmlStreamAttributes & a ) : attrs( a ) {}
+	QString value( const QString & name ) const { return attrs.value( name ).toString(); }
+private:
+	const QXmlStreamAttributes & attrs;
+};
+
 //! Parses nif.xml
-class NifXmlHandler final : public QXmlDefaultHandler
+//
+// Originally a QXmlDefaultHandler (SAX). Qt 6 removed that API, so the handler is
+// now a plain class driven by a QXmlStreamReader pull loop in parseXmlDescription().
+class NifXmlHandler final
 {
 //	Q_DECLARE_TR_FUNCTIONS(NifXmlHandler)
 
@@ -143,7 +160,7 @@ public:
 	 * \param tagid Qualified name
 	 * \param list Attributes
 	 */
-	bool startElement( const QString &, const QString &, const QString & tagid, const QXmlAttributes & list ) override final
+	bool startElement( const QString &, const QString &, const QString & tagid, const XmlAttributes & list )
 	{
 		if ( depth >= 8 )
 			err( tr( "error maximum nesting level exceeded" ) );
@@ -422,7 +439,7 @@ public:
 	 * \param localName (unused)
 	 * \param tagid Qualified name
 	 */
-	bool endElement( const QString &, const QString &, const QString & tagid ) override final
+	bool endElement( const QString &, const QString &, const QString & tagid )
 	{
 		if ( depth <= 0 )
 			err( tr( "mismatching end element tag for element %1" ).arg( tagid ) );
@@ -491,7 +508,7 @@ public:
 	/*!
 	 * \param s The character data
 	 */
-	bool characters( const QString & s ) override final
+	bool characters( const QString & s )
 	{
 		switch ( current() ) {
 		case tagVersion:
@@ -543,7 +560,7 @@ public:
 	}
 
 	//! Reimplemented from QXmlContentHandler
-	bool endDocument() override final
+	bool endDocument()
 	{
 		// make a rough check of the maps
 		for ( const QString& key : NifModel::compounds.keys() ) {
@@ -581,19 +598,9 @@ public:
 		return true;
 	}
 
-	//! Reimplemented from QXmlContentHandler
-	QString errorString() const override final
+	QString errorString() const
 	{
 		return errorStr;
-	}
-	//! Exception handler
-	bool fatalError( const QXmlParseException & exception ) override final
-	{
-		if ( errorStr.isEmpty() )
-			errorStr = "Syntax error";
-
-		errorStr.prepend( tr( "%1 XML parse error (line %2): " ).arg( "NIF" ).arg( exception.lineNumber() ) );
-		return false;
 	}
 };
 
@@ -645,18 +652,43 @@ QString NifModel::parseXmlDescription( const QString & filename )
 		return tr( "Couldn't open NIF XML description file: %1" ).arg( filename );
 
 	NifXmlHandler handler;
-	QXmlSimpleReader reader;
-	reader.setContentHandler( &handler );
-	reader.setErrorHandler( &handler );
-	QXmlInputSource source( &f );
-	reader.parse( source );
+	QXmlStreamReader reader( &f );
 
-	if ( !handler.errorString().isEmpty() ) {
+	// Clears the partially-built maps on failure (matches old behavior).
+	auto fail = []( const QString & msg ) -> QString {
 		compounds.clear();
 		blocks.clear();
 		supportedVersions.clear();
+		return msg;
+	};
+
+	// Qt 6 pull-parse loop dispatching to the (unchanged) SAX-style handler.
+	while ( !reader.atEnd() ) {
+		bool ok = true;
+		switch ( reader.readNext() ) {
+		case QXmlStreamReader::StartElement:
+			ok = handler.startElement( QString(), QString(), reader.name().toString(), XmlAttributes( reader.attributes() ) );
+			break;
+		case QXmlStreamReader::EndElement:
+			ok = handler.endElement( QString(), QString(), reader.name().toString() );
+			break;
+		case QXmlStreamReader::Characters:
+			ok = handler.characters( reader.text().toString() );
+			break;
+		default:
+			break;
+		}
+
+		if ( !ok )
+			return fail( tr( "NIF XML parse error (line %1): %2" ).arg( reader.lineNumber() ).arg( handler.errorString() ) );
 	}
 
-	return handler.errorString();
+	if ( reader.hasError() )
+		return fail( tr( "NIF XML syntax error (line %1): %2" ).arg( reader.lineNumber() ).arg( reader.errorString() ) );
+
+	if ( !handler.endDocument() )
+		return fail( handler.errorString() );
+
+	return QString();
 }
 

@@ -35,7 +35,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "data/niftypes.h"
 
-#include <QGLWidget> // Inherited
+#include <QOpenGLWidget> // Inherited
+#include <QColor>
 #include <QDialog>   // Inherited
 #include <QModelIndex>
 #include <QPointer>
@@ -56,13 +57,16 @@ class QUndoStack;
 #undef None // conflicts with Qt
 
 //! Displays and allows editing of UV coordinate data
-class UVWidget final : public QGLWidget
+class UVWidget final : public QOpenGLWidget
 {
 	Q_OBJECT
 
 protected:
 	UVWidget( QWidget * parent = nullptr );
 	~UVWidget();
+
+	//! Qt 6 replacement for the removed QGLWidget::qglClearColor() convenience.
+	void qglClearColor( const QColor & color );
 
 public:
 	//! Creates the UV editor widget
@@ -165,7 +169,7 @@ private:
 
 	QVector<Vector2> texcoords;
 	QVector<face> faces;
-	QMap<int, int> texcoords2faces;
+	QMultiMap<int, int> texcoords2faces;
 
 	QSize sHint;
 

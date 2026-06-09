@@ -5,6 +5,7 @@
 #include <QList>
 #include <QMap>
 #include <QMapIterator>
+#include <QMultiMap>
 #include <QString>
 
 // Chunk Type definitions
@@ -223,7 +224,7 @@ public:
 
 	Chunk * getChild( ChunkType ct )
 	{
-		return c[ct];
+		return c.value( ct );
 	}
 
 	void reset()
@@ -275,7 +276,7 @@ private:
 	ChunkDataLength dl;
 	ChunkDataCount dc;
 
-	QMap<ChunkType, Chunk *> c;
+	QMultiMap<ChunkType, Chunk *> c;
 
 	void subproc()
 	{
@@ -476,7 +477,7 @@ private:
 	{
 		f->seek( p + CHUNKHEADERSIZE + dl );
 
-		QMap<ChunkType, Chunk *> temp;
+		QMultiMap<ChunkType, Chunk *> temp;
 
 		while ( f->pos() < ( p + h.l ) ) {
 			ChunkPos q = f->pos();
@@ -487,16 +488,13 @@ private:
 
 			Chunk * z = new Chunk( f, k, q );
 
-			temp.insertMulti( k.t, z );
+			temp.insert( k.t, z );
 
 			f->seek( q + k.l );
 		}
 
-		QMapIterator<ChunkType, Chunk *> tempIter( temp );
-
-		while ( tempIter.hasNext() ) {
-			tempIter.next();
-			c.insertMulti( tempIter.key(), tempIter.value() );
+		for ( auto tempIter = temp.cbegin(); tempIter != temp.cend(); ++tempIter ) {
+			c.insert( tempIter.key(), tempIter.value() );
 		}
 
 		f->seek( p + h.l );

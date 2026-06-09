@@ -155,7 +155,7 @@ void PropertyList::del( Property * p )
 	if ( !p )
 		return;
 
-	QHash<Property::Type, Property *>::iterator i = properties.find( p->type() );
+	QMultiHash<Property::Type, Property *>::iterator i = properties.find( p->type() );
 
 	while ( p && i != properties.end() && i.key() == p->type() ) {
 		if ( i.value() == p ) {
@@ -1011,7 +1011,7 @@ QString BSShaderLightingProperty::fileName( int id ) const
 		QModelIndex iTextures = nif->getIndex( iTextureSet, "Textures" );
 
 		if ( id >= 0 && id < nTextures )
-			return nif->get<QString>( iTextures.child( id, 0 ) );
+			return nif->get<QString>( getChildIndex(iTextures,  id, 0 ) );
 	} else {
 		// handle niobject name="BSEffectShaderProperty...
 		auto m = static_cast<EffectMaterial *>(material);

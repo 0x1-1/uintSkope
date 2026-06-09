@@ -66,15 +66,22 @@ QCoreApplication * createApplication( int &argc, char *argv[] )
 //! The main program
 int main( int argc, char * argv[] )
 {
+	// Qt 6: GLView is a QOpenGLWidget; multiple windows share GL resources
+	// (textures, contexts) application-wide rather than via a per-widget share.
+	QCoreApplication::setAttribute( Qt::AA_ShareOpenGLContexts );
+
 	QScopedPointer<QCoreApplication> app( createApplication( argc, argv ) );
 
 	if ( auto a = qobject_cast<QApplication *>(app.data()) ) {
 
 		a->setOrganizationName( "NifTools" );
 		a->setOrganizationDomain( "niftools.org" );
-		a->setApplicationName( "NifSkope " + NifSkopeVersion::rawToMajMin( NIFSKOPE_VERSION ) );
+		// Branded as uintSkope (application name + display name + --version output).
+		// Note: this also moves QSettings under the "uintSkope" key, so settings start
+		// fresh rather than inheriting an existing NifSkope install (fork identity).
+		a->setApplicationName( QStringLiteral( UINTSKOPE_NAME " " ) + NifSkopeVersion::rawToMajMin( NIFSKOPE_VERSION ) );
 		a->setApplicationVersion( NIFSKOPE_VERSION );
-		a->setApplicationDisplayName( "NifSkope " + NifSkopeVersion::rawToDisplay( NIFSKOPE_VERSION, true ) );
+		a->setApplicationDisplayName( QStringLiteral( UINTSKOPE_NAME " " ) + NifSkopeVersion::rawToDisplay( NIFSKOPE_VERSION, true ) );
 
 		// Must set current directory or this causes issues with several features
 		QDir::setCurrent( qApp->applicationDirPath() );
@@ -85,7 +92,8 @@ int main( int argc, char * argv[] )
 
 		// Register types
 		qRegisterMetaType<NifValue>( "NifValue" );
-		QMetaType::registerComparators<NifValue>();
+		// Qt 6: QMetaType::registerComparators() was removed. Equality for NifValue
+		// inside QVariant is now detected automatically from NifValue::operator==.
 
 		// Set locale
 		QSettings cfg( QString( "%1/nifskope.ini" ).arg( QCoreApplication::applicationDirPath() ), QSettings::IniFormat );

@@ -53,6 +53,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ui/settingsdialog.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
@@ -143,12 +144,12 @@ void NifSkope::initActions()
 	aSelectFont = ui->aSelectFont;
 
 	// Build all actions list
-	allActions = QSet<QAction *>::fromList( 
-		ui->tFile->actions() 
+	// Qt 6: QSet::fromList() was removed; build the QList then range-construct the set.
+	const QList<QAction *> allActionList = ui->tFile->actions()
 		<< ui->mRender->actions()
 		<< ui->tRender->actions()
-		<< ui->tAnim->actions()
-	);
+		<< ui->tAnim->actions();
+	allActions = QSet<QAction *>( allActionList.cbegin(), allActionList.cend() );
 
 	// Undo/Redo
 	undoAction = nif->undoStack->createUndoAction( this, tr( "&Undo" ) );
@@ -581,7 +582,7 @@ void NifSkope::initToolBars()
 	animGroups->setMinimumWidth( 60 );
 	animGroups->setSizeAdjustPolicy( QComboBox::AdjustToContents );
 	animGroups->setSizePolicy( QSizePolicy::Fixed, QSizePolicy::Minimum );
-	connect( animGroups, static_cast<void (QComboBox::*)(const QString&)>(&QComboBox::activated), ogl, &GLView::setSceneSequence );
+	connect( animGroups, &QComboBox::textActivated, ogl, &GLView::setSceneSequence );
 
 	ui->tAnim->addWidget( animSlider );
 	animGroupsAction = ui->tAnim->addWidget( animGroups );
@@ -630,7 +631,7 @@ void NifSkope::initToolBars()
 	tLOD->setVisible( false );
 
 	connect( lodSlider, &QSlider::valueChanged, ogl->getScene(), &Scene::updateLodLevel );
-	connect( lodSlider, &QSlider::valueChanged, ogl, &GLView::updateGL );
+	connect( lodSlider, &QSlider::valueChanged, ogl, QOverload<>::of( &GLView::update ) );
 	connect( nif, &NifModel::lodSliderChanged, [tLOD]( bool enabled ) { tLOD->setEnabled( enabled ); tLOD->setVisible( enabled ); } );
 }
 
@@ -800,7 +801,7 @@ void NifSkope::onLoadComplete( bool success, QString & fname )
 
 		header->setRootIndex( nif->getHeader() );
 		// Refresh the header rows
-		header->updateConditions( nif->getHeader().child( 0, 0 ), nif->getHeader().child( 20, 0 ) );
+		header->updateConditions( getChildIndex( nif->getHeader(), 0, 0 ), getChildIndex( nif->getHeader(), 20, 0 ) );
 
 		ogl->setOrientation( GLView::ViewFront );
 
@@ -1001,13 +1002,13 @@ void NifSkope::setViewFont( const QFont & font )
 {
 	list->setFont( font );
 	QFontMetrics metrics( list->font() );
-	list->setIconSize( QSize( metrics.width( "000" ), metrics.lineSpacing() ) );
+	list->setIconSize( QSize( metrics.horizontalAdvance( "000" ), metrics.lineSpacing() ) );
 	tree->setFont( font );
-	tree->setIconSize( QSize( metrics.width( "000" ), metrics.lineSpacing() ) );
+	tree->setIconSize( QSize( metrics.horizontalAdvance( "000" ), metrics.lineSpacing() ) );
 	header->setFont( font );
-	header->setIconSize( QSize( metrics.width( "000" ), metrics.lineSpacing() ) );
+	header->setIconSize( QSize( metrics.horizontalAdvance( "000" ), metrics.lineSpacing() ) );
 	kfmtree->setFont( font );
-	kfmtree->setIconSize( QSize( metrics.width( "000" ), metrics.lineSpacing() ) );
+	kfmtree->setIconSize( QSize( metrics.horizontalAdvance( "000" ), metrics.lineSpacing() ) );
 	ogl->setFont( font );
 }
 
@@ -1265,7 +1266,7 @@ bool NifSkope::eventFilter( QObject * o, QEvent * e )
 
 		if ( !isResizing  && !resizeTimer->isActive() ) {
 			ogl->getScene()->animate = false;
-			ogl->updateGL();
+			ogl->update();
 
 			if ( viewBuffer.isNull() ) {
 				// Init initial buffer with solid color
@@ -1273,7 +1274,7 @@ bool NifSkope::eventFilter( QObject * o, QEvent * e )
 				viewBuffer = QImage( 10, 10, QImage::Format_ARGB32 );
 				viewBuffer.fill( ogl->clearColor() );
 			} else {
-				viewBuffer = ogl->grabFrameBuffer();
+				viewBuffer = ogl->grabFramebuffer();
 			}
 
 			ogl->setUpdatesEnabled( false );

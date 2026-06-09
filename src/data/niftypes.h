@@ -38,6 +38,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QDataStream>
 #include <QDebug>
 #include <QString>
+#include <QAbstractItemModel>
 
 #include <cfloat>
 #include <cmath>
@@ -56,7 +57,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //! @file niftypes.h Matrix, Matrix4, Triangle, Vector2, Vector3, Vector4, Color3, Color4, Quat
 
 class NifModel;
-class QModelIndex;
+
+//! Qt 6 replacement for the removed QModelIndex::child(row, column).
+//! Returns the child index via the index's own model, or an invalid index.
+inline QModelIndex getChildIndex( const QModelIndex & idx, int row, int column = 0 )
+{
+	return idx.model() ? idx.model()->index( row, column, idx ) : QModelIndex();
+}
 
 //! Format a float with out of range values
 QString NumOrMinMax( float val, char f = 'g', int prec = 6 );
@@ -1105,6 +1112,14 @@ public:
 	{
 		Q_ASSERT( i < 3 );
 		return v[i];
+	}
+	//! Less-than ordering (Qt 6: QMap keys use std::less; replaces the old
+	//! qMapLessThanKey<Triangle> specialization).
+	bool operator<( const Triangle & o ) const
+	{
+		if ( v[0] != o.v[0] ) return v[0] < o.v[0];
+		if ( v[1] != o.v[1] ) return v[1] < o.v[1];
+		return v[2] < o.v[2];
 	}
 	//! Sets the vertices of the triangle
 	void set( quint16 a, quint16 b, quint16 c )

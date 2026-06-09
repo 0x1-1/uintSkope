@@ -49,6 +49,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ui/settingsdialog.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QBuffer>
 #include <QByteArray>
@@ -65,6 +66,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QTranslator>
 #include <QUrl>
 #include <QCryptographicHash>
+#include <QRegularExpression>
 
 #include <QListView>
 #include <QTreeView>
@@ -74,7 +76,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fsengine/fsmanager.h>
 
 #ifdef WIN32
-#  define WINDOWS_LEAN_AND_MEAN
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN  // exclude OLE/COM headers whose 'byte' clashes with std::byte (C++17+)
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
 #  include "windows.h"
 #endif
 
@@ -490,7 +497,7 @@ void NifSkope::select( const QModelIndex & index )
 			tree->setCurrentIndex( idx.sibling( idx.row(), 0 ) );
 
 			// Expand BSShaderTextureSet by default
-			//if ( root.child( 1, 0 ).data().toString() == "Textures" )
+			//if ( getChildIndex(root,  1, 0 ).data().toString() == "Textures" )
 			//	tree->expandAll();
 
 		} else {
@@ -561,7 +568,7 @@ QString strippedName( const QString & fullFileName )
 
 int updateRecentActions( QAction * acts[], const QStringList & files )
 {
-	int numRecentFiles = std::min( files.size(), (int)NifSkope::NumRecentFiles );
+	int numRecentFiles = std::min( int(files.size()), int(NifSkope::NumRecentFiles) );
 
 	for ( int i = 0; i < numRecentFiles; ++i ) {
 		QString text = QString( "&%1 %2" ).arg( i + 1 ).arg( strippedName( files[i] ) );
@@ -769,7 +776,6 @@ void NifSkope::openArchive( const QString & archive )
 {
 	// Clear memory from previously opened archives
 	bsaModel->clear();
-	bsaProxyModel->clear();
 	bsaProxyModel->setSourceModel( emptyModel );
 	bsaView->setModel( emptyModel );
 	bsaView->setSortingEnabled( false );
@@ -830,7 +836,7 @@ void NifSkope::openArchive( const QString & archive )
 		connect( filterTimer, &QTimer::timeout, [this]() {
 			auto text = ui->bsaFilter->text();
 
-			bsaProxyModel->setFilterRegExp( QRegExp( text, Qt::CaseInsensitive, QRegExp::Wildcard ) );
+			bsaProxyModel->setFilterRegularExpression( QRegularExpression::fromWildcard( text, Qt::CaseInsensitive ) );
 			bsaView->expandAll();
 
 			if ( text.isEmpty() ) {
@@ -1134,9 +1140,9 @@ void NifSkope::sltLocaleChanged()
 {
 	SetAppLocale( cfg.locale );
 
-	QMessageBox mb( "NifSkope",
-	                tr( "NifSkope must be restarted for this setting to take full effect." ),
-	                QMessageBox::Information, QMessageBox::Ok + QMessageBox::Default, 0, 0,
+	QMessageBox mb( "uintSkope",
+	                tr( "uintSkope must be restarted for this setting to take full effect." ),
+	                QMessageBox::Information, QMessageBox::Ok | QMessageBox::Default, 0, 0,
 	                qApp->activeWindow()
 	);
 	mb.setIconPixmap( QPixmap( ":/res/nifskope.png" ) );

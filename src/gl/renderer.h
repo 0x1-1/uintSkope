@@ -67,6 +67,9 @@ public:
 	Renderer( QOpenGLContext * c, QOpenGLFunctions * f );
 	~Renderer();
 
+	//! Update the OpenGL context/functions (Qt 6: resolved in GLView::initializeGL).
+	void setContext( QOpenGLContext * c, QOpenGLFunctions * f ) { cx = c; fn = f; }
+
 	//! Set up shaders
 	bool initialize();
 	//! Whether shader support is available

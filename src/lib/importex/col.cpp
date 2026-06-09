@@ -36,6 +36,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "lib/nvtristripwrapper.h"
 
+#include <QFileInfo>
 #include <QApplication>
 #include <QDebug>
 #include <QDateTime>
@@ -530,7 +531,7 @@ QDomElement textureElement( const NifModel * nif, QDomElement effect, QModelInde
 
 	if ( iTexture.isValid() ) {
 		// we have texture
-		QFileInfo textureFile = nif->get<QString>( iTexture, "File Name" );
+		QFileInfo textureFile( nif->get<QString>( iTexture, "File Name" ) );
 
 		// surface
 		QDomElement newparam = doc.createElement( "newparam" );
@@ -770,7 +771,7 @@ void attachNiShape ( const NifModel * nif, QDomElement parentNode, int idx )
 			QModelIndex iUV = nif->getIndex( iProp, "UV Sets" );
 
 			for ( int row = 0; row < uvCount; row++ ) {
-				QVector<Vector2> uvMap = nif->getArray<Vector2>( iUV.child( row, 0 ) );
+				QVector<Vector2> uvMap = nif->getArray<Vector2>( getChildIndex(iUV,  row, 0 ) );
 				mesh.appendChild( uvMapElement( uvMap, idx, row ) );
 
 				if ( uvMap.size() > 0 )
@@ -845,7 +846,7 @@ void attachNiShape ( const NifModel * nif, QDomElement parentNode, int idx )
 				QVector<QVector<quint16> > strips;
 
 				for ( int r = 0; r < nif->rowCount( iPoints ); r++ )
-					strips.append( nif->getArray<quint16>( iPoints.child( r, 0 ) ) );
+					strips.append( nif->getArray<quint16>( getChildIndex(iPoints,  r, 0 ) ) );
 
 				tri = triangulate( strips );
 			} else {
