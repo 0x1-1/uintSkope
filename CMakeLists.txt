@@ -44,7 +44,7 @@ endif()
 project(uintSkope
     VERSION   ${_uintskope_major}.${_uintskope_minor}.${_uintskope_patch}
     DESCRIPTION "Modernized fork of NifSkope for viewing/editing NetImmerse/Gamebryo NIF, KF and KFM files"
-    HOMEPAGE_URL "https://github.com/uintptr/uintSkope"
+    HOMEPAGE_URL "https://github.com/0x1-1/uintSkope"
     LANGUAGES C CXX
 )
 

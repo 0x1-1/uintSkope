@@ -24,7 +24,7 @@ uintSkope vendors several dependencies as git submodules
 build fails early with a clear message if they are missing.
 
 ```bash
-git clone --recursive https://github.com/uintptr/uintSkope.git
+git clone --recursive https://github.com/0x1-1/uintSkope.git
 cd uintSkope
 # or, if already cloned:
 git submodule update --init --recursive

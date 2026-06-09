@@ -1,6 +1,6 @@
 # uintSkope
 
-[![CI](https://github.com/uintptr/uintSkope/actions/workflows/ci.yml/badge.svg)](https://github.com/uintptr/uintSkope/actions/workflows/ci.yml)
+[![CI](https://github.com/0x1-1/uintSkope/actions/workflows/ci.yml/badge.svg)](https://github.com/0x1-1/uintSkope/actions/workflows/ci.yml)
 
 **uintSkope** is a maintained, modernized fork of
 [**NifSkope**](https://github.com/niftools/nifskope) — a desktop tool for opening,
@@ -47,7 +47,7 @@ Requires **Qt 6** (6.2 or newer) at build time.
 Quick start (any platform with CMake ≥ 3.21, Ninja, a C++20 compiler and Qt 6):
 
 ```bash
-git clone --recursive https://github.com/uintptr/uintSkope.git
+git clone --recursive https://github.com/0x1-1/uintSkope.git
 cd uintSkope
 
 # If you cloned without --recursive:

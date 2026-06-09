@@ -165,7 +165,7 @@ produce a runnable, self-contained tree (see §10).
 - **macOS artifact is single-arch** (runner arch), not a universal binary.
 - **Settings location moved** to the `uintSkope` key (the app is rebranded), so an
   existing NifSkope install's settings do not carry over. Documented in `main.cpp`.
-- **README badge URL** assumes the `uintptr/uintSkope` repo; adjust if the remote differs.
+- **README badge URL** assumes the `0x1-1/uintSkope` repo; adjust if the remote differs.
 - `UINTSKOPE_USE_SYSTEM_QHULL` is experimental (see §5).
 
 ## 10. Commands executed & results
