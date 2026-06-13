@@ -40,6 +40,12 @@ NIF/KF/KFM format definitions are provided by the bundled
 
 Requires **Qt 6** (6.2 or newer) at build time.
 
+> **MOPP (Havok collision) generation** — the *Update MOPP Code* spells rely on a
+> prebuilt `NifMopp.dll` that is **32-bit Windows only**. They are therefore
+> unavailable in the default 64-bit Windows build and on Linux/macOS. Viewing and
+> all other editing is unaffected; this is a long-standing upstream limitation of
+> the closed Havok helper.
+
 ---
 
 ## Building

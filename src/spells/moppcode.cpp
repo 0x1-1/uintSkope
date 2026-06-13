@@ -152,7 +152,10 @@ public:
 	QModelIndex cast( NifModel * nif, const QModelIndex & iBlock ) override final
 	{
 		if ( !TheHavokCode.Initialize() ) {
-			Message::critical( nullptr, Spell::tr( "Unable to locate NifMopp.dll" ) );
+			Message::critical( nullptr, Spell::tr( "MOPP generation unavailable" ),
+				Spell::tr( "Could not load NifMopp.dll. It must sit next to the executable "
+				           "and match the build architecture; the bundled DLL is 32-bit "
+				           "only, so a 64-bit build cannot use it." ) );
 			return iBlock;
 		}
 

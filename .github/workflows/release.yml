@@ -27,8 +27,8 @@ jobs:
             name: Windows x64
             artifact: uintSkope-windows-x64.zip
           - os: ubuntu-latest
-            name: Linux x64
-            artifact: uintSkope-linux-x64.tar.gz
+            name: Linux x86_64
+            artifact: uintSkope-linux-x86_64.AppImage
           - os: macos-latest
             name: macOS arm64
             artifact: uintSkope-macos-arm64.zip
@@ -74,6 +74,28 @@ jobs:
       - name: Install (flat, deployed layout)
         run: cmake --install build --prefix dist
 
+      # ---- Verify the Qt runtime was actually bundled (windeployqt/macdeployqt
+      #      only warn on failure, so a broken, non-launching package could
+      #      otherwise be uploaded with the job still green). ----
+      - name: Verify Qt runtime is bundled (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/platforms/qwindows.dll)) {
+            throw "windeployqt did not stage platforms/qwindows.dll; the package would not launch."
+          }
+          if (-not (Get-ChildItem dist/Qt6Core.dll -ErrorAction SilentlyContinue)) {
+            throw "windeployqt did not stage the Qt6 runtime DLLs."
+          }
+
+      - name: Verify Qt runtime is bundled (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if [ ! -f "dist/uintSkope.app/Contents/PlugIns/platforms/libqcocoa.dylib" ]; then
+            echo "macdeployqt did not stage the cocoa platform plugin; the app would not launch." >&2
+            exit 1
+          fi
+
       # ---- Package (per OS) ----
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -83,12 +105,50 @@ jobs:
           $h = (Get-FileHash ${{ matrix.artifact }} -Algorithm SHA256).Hash.ToLower()
           "$h  ${{ matrix.artifact }}" | Out-File -Encoding ascii ${{ matrix.artifact }}.sha256
 
-      - name: Package (Linux)
+      - name: Package (Linux AppImage)
         if: runner.os == 'Linux'
+        env:
+          # ubuntu-latest has no FUSE; run the linuxdeploy AppImages by extracting.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
-          # Tarball of the CMake install output. NOTE: Linux artifacts depend on a
-          # system Qt 6 + OpenGL runtime (no first-party Qt deploy tool on Linux).
-          tar -czf "${{ matrix.artifact }}" -C dist .
+          set -e
+          # Stage the binary + data into an AppDir. The app loads nif.xml / kfm.xml
+          # / shaders / style.qss by a path relative to the executable, so they must
+          # sit beside the binary (here: AppDir/usr/bin).
+          APPDIR="$PWD/AppDir"
+          mkdir -p "$APPDIR/usr/bin"
+          cp -r dist/. "$APPDIR/usr/bin/"
+
+          # Desktop entry + icon (required by linuxdeploy). Icon basename must match
+          # the Icon= key so linuxdeploy can resolve it.
+          cp res/nifskope.png uintskope.png
+          {
+            echo "[Desktop Entry]"
+            echo "Type=Application"
+            echo "Name=uintSkope"
+            echo "Comment=View and edit NetImmerse/Gamebryo NIF, KF, KFM files"
+            echo "Exec=uintSkope %F"
+            echo "Icon=uintskope"
+            echo "Categories=Graphics;3DGraphics;"
+            echo "Terminal=false"
+          } > uintskope.desktop
+
+          # Fetch linuxdeploy + the Qt plugin (bundles Qt6 into the AppImage).
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+
+          export QMAKE="${QT_ROOT_DIR}/bin/qmake"
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir "$APPDIR" \
+            --executable "$APPDIR/usr/bin/uintSkope" \
+            --desktop-file uintskope.desktop \
+            --icon-file uintskope.png \
+            --plugin qt \
+            --output appimage
+
+          # linuxdeploy names the output from the desktop "Name"; normalize it.
+          mv uintSkope*-x86_64.AppImage "${{ matrix.artifact }}"
           sha256sum "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"
 
       - name: Package (macOS)
@@ -123,7 +183,7 @@ jobs:
       - name: Generate combined checksums
         working-directory: artifacts
         run: |
-          sha256sum uintSkope-*.zip uintSkope-*.tar.gz 2>/dev/null > SHA256SUMS || true
+          sha256sum uintSkope-*.zip uintSkope-*.AppImage 2>/dev/null > SHA256SUMS || true
           echo "=== SHA256SUMS ===" && cat SHA256SUMS
 
       - name: Create / update GitHub Release
@@ -135,7 +195,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/uintSkope-*.zip
-            artifacts/uintSkope-*.tar.gz
+            artifacts/uintSkope-*.AppImage
             artifacts/*.sha256
             artifacts/SHA256SUMS
         env:

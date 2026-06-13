@@ -60,13 +60,22 @@ install(FILES
 if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/dep/NifMopp.dll"
         DESTINATION "${UINTSKOPE_DATA_DEST}")
+elseif(WIN32)
+    # The bundled NifMopp.dll is 32-bit only; a 64-bit process cannot load it, so
+    # MOPP (Havok collision) generation is unavailable on the default 64-bit build.
+    # Surface this at configure time so packagers know the shipped build lacks it.
+    message(WARNING
+        "64-bit Windows build: the bundled NifMopp.dll is 32-bit only and will not "
+        "be installed. 'Update MOPP Code' / 'Update All MOPP Code' will be "
+        "unavailable in this build. See README (MOPP / Havok) for details.")
 endif()
 
 #------------------------------------------------------------------------------
 # Qt runtime deployment — run windeployqt / macdeployqt directly on the INSTALLED
 # executable so the Qt libraries and plugins land BESIDE it (the flat layout the
-# app needs). Linux has no first-party deploy tool; the release workflow uses
-# linuxdeploy for AppImage packaging and otherwise relies on system Qt.
+# app needs). Linux has no first-party Qt deploy tool: the release workflow
+# bundles Qt into an AppImage via linuxdeploy, while a plain `cmake --install`
+# stages only the binary + data and relies on the system Qt being present.
 #------------------------------------------------------------------------------
 get_filename_component(_uintskope_qt_bin "${Qt6_DIR}/../../../bin" ABSOLUTE)
 
