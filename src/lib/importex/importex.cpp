@@ -50,7 +50,7 @@ void import3ds( NifModel * nif, const QModelIndex & index );
 void NifSkope::fillImportExportMenus()
 {
 	mExport->addAction( tr( "Export .OBJ" ) );
-	//mExport->addAction( tr( "Export .DAE" ) );
+	mExport->addAction( tr( "Export .DAE" ) );
 	//mImport->addAction( tr( "Import .3DS" ) );
 	mImport->addAction( tr( "Import .OBJ" ) );
 }
@@ -92,8 +92,8 @@ void NifSkope::sltImportExport( QAction * a )
 		exportObj( nif, index );
 	else if ( a->text() == tr( "Import .OBJ" ) )
 		importObj( nif, index );
+	else if ( a->text() == tr( "Export .DAE" ) )
+		exportCol( nif, QFileInfo( currentFile ) );
 	//else if ( a->text() == tr( "Import .3DS" ) )
 	//	import3ds( nif, index );
-	//else if ( a->text() == tr( "Export .DAE" ) )
-	//	exportCol( nif, currentFile );
 }

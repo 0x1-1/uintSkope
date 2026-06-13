@@ -67,6 +67,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QUrl>
 #include <QCryptographicHash>
 #include <QRegularExpression>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMetaType>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 
 #include <QListView>
 #include <QTreeView>
@@ -836,7 +842,10 @@ void NifSkope::openArchive( const QString & archive )
 		connect( filterTimer, &QTimer::timeout, [this]() {
 			auto text = ui->bsaFilter->text();
 
-			bsaProxyModel->setFilterRegularExpression( QRegularExpression::fromWildcard( text, Qt::CaseInsensitive ) );
+			// fromWildcard() is fully anchored by default in Qt6; use the
+			// unanchored conversion so a bare word stays a substring match
+			// (the old QRegExp::Wildcard + contains() behavior).
+			bsaProxyModel->setFilterRegularExpression( QRegularExpression::fromWildcard( text, Qt::CaseInsensitive, QRegularExpression::UnanchoredWildcardConversion ) );
 			bsaView->expandAll();
 
 			if ( text.isEmpty() ) {
@@ -1157,6 +1166,38 @@ void NifSkope::migrateSettings() const
 {
 	// Load current NifSkope settings
 	QSettings settings;
+
+	// One-time import from an existing NifSkope install of the same major.minor.
+	// The fork moved QSettings under the "uintSkope" key (see main.cpp), so an
+	// existing NifSkope user would otherwise start blank — losing recent files,
+	// resource/texture folders, dock layout and theme. Non-destructive: the
+	// original NifSkope settings are left untouched, and this runs only once.
+	if ( !settings.value( "Imported From NifSkope" ).isValid() ) {
+		QSettings nifskope( "NifTools", QStringLiteral( "NifSkope " ) + NifSkopeVersion::rawToMajMin( NIFSKOPE_VERSION ) );
+		if ( nifskope.value( "Version" ).isValid() ) {
+			const QStringList keys = nifskope.allKeys();
+			for ( const QString & key : keys ) {
+				// Leave the version bootstrap (below) to manage these, so the
+				// "new install" detection still fires for this app's own key.
+				if ( key == QLatin1String( "Version" ) || key == QLatin1String( "Qt Version" )
+				     || key == QLatin1String( "Display Version" ) )
+					continue;
+				QVariant val = nifskope.value( key );
+				// Skip Qt-version-specific binary blobs (window/dock geometry);
+				// they do not transfer cleanly between the two Qt builds.
+				if ( val.metaType() == QMetaType::fromType<QByteArray>() )
+					continue;
+				if ( !settings.contains( key ) )
+					settings.setValue( key, val );
+			}
+			qDebug() << "Imported settings from an existing NifSkope install";
+		} else {
+			// Constructing QSettings created an empty group; remove it.
+			nifskope.clear();
+		}
+		settings.setValue( "Imported From NifSkope", true );
+	}
+
 	// Load pre-1.2 NifSkope settings
 	QSettings cfg1_1( "NifTools", "NifSkope" );
 	// Load NifSkope 1.2 settings
@@ -1314,4 +1355,73 @@ void NifSkope::migrateSettings() const
 		settings.setValue( "Qt Version", curQtVer );
 	}
 #endif
+}
+
+
+void NifSkope::checkForUpdates()
+{
+	static const QString repo = QStringLiteral( "0x1-1/uintSkope" );
+	QUrl url( QStringLiteral( "https://api.github.com/repos/%1/releases/latest" ).arg( repo ) );
+
+	auto nam = new QNetworkAccessManager( this );
+	QNetworkRequest request( url );
+	request.setRawHeader( "Accept", "application/vnd.github+json" );
+	request.setHeader( QNetworkRequest::UserAgentHeader, QStringLiteral( UINTSKOPE_NAME ) );
+
+	connect( nam, &QNetworkAccessManager::finished, this, [this, nam]( QNetworkReply * reply ) {
+		reply->deleteLater();
+		nam->deleteLater();
+
+		if ( reply->error() != QNetworkReply::NoError ) {
+			QMessageBox::warning( this, tr( "Update check failed" ),
+				tr( "Could not contact the update server:\n%1" ).arg( reply->errorString() ) );
+			return;
+		}
+
+		QJsonParseError jsonErr;
+		QJsonDocument doc = QJsonDocument::fromJson( reply->readAll(), &jsonErr );
+		if ( jsonErr.error != QJsonParseError::NoError || !doc.isObject() ) {
+			QMessageBox::warning( this, tr( "Update check failed" ),
+				tr( "Could not parse the update server response." ) );
+			return;
+		}
+
+		QJsonObject obj = doc.object();
+		QString tag = obj.value( "tag_name" ).toString();
+		QString htmlUrl = obj.value( "html_url" ).toString();
+
+		if ( tag.isEmpty() ) {
+			QMessageBox::information( this, tr( "No releases found" ),
+				tr( "No published releases were found for %1." ).arg( repo ) );
+			return;
+		}
+
+		// Normalize a "v2.0.dev8"-style tag to "2.0.dev8" for comparison.
+		QString latest = tag;
+		if ( latest.startsWith( QLatin1Char( 'v' ) ) || latest.startsWith( QLatin1Char( 'V' ) ) )
+			latest.remove( 0, 1 );
+
+		NifSkopeVersion::setNumParts( 7 );
+		NifSkopeVersion current( NIFSKOPE_VERSION );
+		NifSkopeVersion newest( latest );
+
+		QString installed = NifSkopeVersion::rawToDisplay( NIFSKOPE_VERSION, true );
+
+		if ( newest > current ) {
+			auto ret = QMessageBox::information( this, tr( "Update available" ),
+				tr( "A newer version of uintSkope is available.\n\nInstalled: %1\nLatest: %2\n\nOpen the download page?" ).arg( installed, tag ),
+				QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes );
+			if ( ret == QMessageBox::Yes ) {
+				QString page = htmlUrl.isEmpty()
+					? QStringLiteral( "https://github.com/%1/releases" ).arg( repo )
+					: htmlUrl;
+				QDesktopServices::openUrl( QUrl( page ) );
+			}
+		} else {
+			QMessageBox::information( this, tr( "Up to date" ),
+				tr( "You are running the latest version of uintSkope (%1)." ).arg( installed ) );
+		}
+	} );
+
+	nam->get( request );
 }

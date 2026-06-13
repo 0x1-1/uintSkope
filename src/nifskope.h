@@ -223,6 +223,9 @@ protected slots:
 
 	void archiveDlg();
 
+	//! Queries the fork's GitHub releases and reports whether a newer build exists.
+	void checkForUpdates();
+
 	void load();
 	void save();
 

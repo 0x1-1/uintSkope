@@ -849,7 +849,7 @@ void BSAProxyModel::setFilterByNameOnly( bool nameOnly )
 
 void BSAProxyModel::resetFilter()
 {
-	setFilterRegularExpression( QRegularExpression::fromWildcard( QStringLiteral("*"), Qt::CaseInsensitive ) );
+	setFilterRegularExpression( QRegularExpression::fromWildcard( QStringLiteral("*"), Qt::CaseInsensitive, QRegularExpression::UnanchoredWildcardConversion ) );
 }
 
 bool BSAProxyModel::filterAcceptsRow( int sourceRow, const QModelIndex & sourceParent ) const

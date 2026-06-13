@@ -294,6 +294,12 @@ void NifSkope::initActions()
 	connect( aCondition, &QAction::toggled, tree, &NifTreeView::setRowHiding );
 	connect( aCondition, &QAction::toggled, kfmtree, &NifTreeView::setRowHiding );
 
+	// Help -> Check for Updates (added in code; placed above the About entries)
+	auto aCheckForUpdates = new QAction( tr( "Check for Updates..." ), this );
+	ui->mHelp->insertAction( ui->aAboutNifSkope, aCheckForUpdates );
+	ui->mHelp->insertSeparator( ui->aAboutNifSkope );
+	connect( aCheckForUpdates, &QAction::triggered, this, &NifSkope::checkForUpdates );
+
 	connect( ui->aAboutNifSkope, &QAction::triggered, []() {
 		auto aboutDialog = new AboutDialog();
 		aboutDialog->show();
@@ -1033,17 +1039,27 @@ void NifSkope::loadTheme()
 	//setThemeActions();
 	setToolbarSize();
 
+	// Helper: apply a native style, falling back to Fusion when the requested
+	// style is unavailable (e.g. "WindowsXP" was removed in Qt6, and the
+	// Windows styles do not exist on Linux/macOS). Without the fallback,
+	// setStyle(nullptr) is a no-op while the stylesheet/palette are still
+	// wiped, leaving a half-themed window.
+	auto applyNativeStyle = [this]( const QString & styleName ) {
+		QStyle * s = QStyleFactory::create( styleName );
+		if ( !s )
+			s = QStyleFactory::create( "Fusion" );
+		QApplication::setStyle( s );
+		qApp->setStyleSheet( "" );
+		qApp->setPalette( s ? s->standardPalette() : style()->standardPalette() );
+	};
+
 	switch ( theme )
 	{
 	case ThemeWindowsXP:
-		QApplication::setStyle( QStyleFactory::create( "WindowsXP" ) );
-		qApp->setStyleSheet("");
-		qApp->setPalette( style()->standardPalette() );
+		applyNativeStyle( "WindowsXP" );
 		return;
 	case ThemeWindows:
-		QApplication::setStyle( QStyleFactory::create( "WindowsVista" ) );
-		qApp->setStyleSheet("");
-		qApp->setPalette( style()->standardPalette() );
+		applyNativeStyle( "WindowsVista" );
 		return;
 	case ThemeDark:
 	case ThemeLight:
