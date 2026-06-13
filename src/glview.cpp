@@ -813,10 +813,6 @@ int indexAt( /*GLuint *buffer,*/ NifModel * model, Scene * scene, QList<DrawFunc
 	QImage img( fbo.toImage() );
 	QColor pixel = img.pixel( pos );
 
-#ifndef QT_NO_DEBUG
-	img.save( "fbo.png" );
-#endif
-
 	// Encode RGB to Int
 	int a = 0;
 	a |= pixel.red()   << 0;
@@ -1335,6 +1331,47 @@ void GLView::advanceGears()
 }
 
 
+QImage GLView::renderToImage( int w, int h, int samples )
+{
+	if ( w <= 0 || h <= 0 )
+		return QImage();
+
+	makeCurrent();
+
+	QOpenGLFramebufferObjectFormat fboFmt;
+	fboFmt.setTextureTarget( GL_TEXTURE_2D );
+	fboFmt.setInternalTextureFormat( GL_RGB );
+	fboFmt.setMipmap( false );
+	// paintGL() clears the stencil buffer too, so attach depth + stencil.
+	fboFmt.setAttachment( QOpenGLFramebufferObject::Attachment::CombinedDepthStencil );
+	if ( samples > 1 )
+		fboFmt.setSamples( samples );
+
+	QOpenGLFramebufferObject fbo( w, h, fboFmt );
+
+	// Render the scene at the requested resolution. paintGL() uses `aspect` and
+	// the current glViewport, so set both for the FBO and restore afterwards.
+	GLdouble savedAspect = aspect;
+	aspect = (GLdouble)w / (GLdouble)h;
+
+	fbo.bind();
+	glViewport( 0, 0, w, h );
+	qglClearColor( cfg.background );
+	paintGL(); // synchronous: draws straight into the bound FBO
+	fbo.release();
+
+	aspect = savedAspect;
+
+	QImage img = fbo.toImage();
+
+	// Restore the widget's own framebuffer and schedule a normal on-screen repaint.
+	QOpenGLFramebufferObject::bindDefault();
+	update();
+
+	return img;
+}
+
+
 // TODO: Separate widget
 void GLView::saveImage()
 {
@@ -1408,10 +1445,12 @@ void GLView::saveImage()
 		return btn;
 	};
 
-	// Get max viewport size for platform
-	GLint dims;
-	glGetIntegerv( GL_MAX_VIEWPORT_DIMS, &dims );
-	int maxSize = dims;
+	// Get max viewport size for platform.
+	// GL_MAX_VIEWPORT_DIMS writes TWO integers (max width, max height); the
+	// destination must hold both or the driver overruns the stack.
+	GLint dims[2] = { 0, 0 };
+	glGetIntegerv( GL_MAX_VIEWPORT_DIMS, dims );
+	int maxSize = std::min( dims[0], dims[1] );
 
 	// Default size
 	auto btnOneX = btnSize( "1x" );
@@ -1483,43 +1522,14 @@ void GLView::saveImage()
 
 			// Supersampling
 			int ss = grpSize->checkedId();
+			if ( ss < 1 )
+				ss = 1;
 
-			int w, h;
-
-			w = width();
-			h = height();
-
-			// Resize viewport for supersampling
-			if ( ss > 1 ) {
-				w *= ss;
-				h *= ss;
-
-				resizeGL( w, h );
-			}
-			
-			QOpenGLFramebufferObjectFormat fboFmt;
-			fboFmt.setTextureTarget( GL_TEXTURE_2D );
-			fboFmt.setInternalTextureFormat( GL_RGB );
-			fboFmt.setMipmap( false );
-			fboFmt.setAttachment( QOpenGLFramebufferObject::Attachment::Depth );
-			fboFmt.setSamples( 16 / ss );
-
-			QOpenGLFramebufferObject fbo( w, h, fboFmt );
-			fbo.bind();
-
-			update();
-			// Qt 6: QGLWidget::update() removed; update() schedules the repaint.
-			// NOTE: supersampled screenshot-to-FBO capture needs runtime validation
-			// under QOpenGLWidget (renders to its own framebuffer).
-
-			fbo.release();
-
-			QImage * img = new QImage(fbo.toImage());
-
-			// Return viewport to original size
-			if ( ss > 1 )
-				resizeGL( width(), height() );
-
+			// Render synchronously into an offscreen FBO at the (supersampled)
+			// resolution. Must not use update() here: under QOpenGLWidget that
+			// only schedules a deferred repaint into the widget's own FBO, so
+			// the capture would read back an empty (black) buffer.
+			QImage img = renderToImage( width() * ss, height() * ss, 16 / ss );
 
 			QImageWriter writer( file->file() );
 
@@ -1536,14 +1546,11 @@ void GLView::saveImage()
 				writer.setQuality( 75 + pixQuality->value() / 4 );
 			}
 
-			if ( writer.write( *img ) ) {
+			if ( writer.write( img ) ) {
 				dlg->accept();
 			} else {
 				Message::critical( this, tr( "Could not save %1" ).arg( file->file() ) );
 			}
-
-			delete img;
-			img = nullptr;
 		}
 	);
 	connect( btnCancel, &QPushButton::clicked, dlg, &QDialog::reject );
@@ -1762,29 +1769,19 @@ void GLView::mouseReleaseEvent( QMouseEvent * event )
 		}
 
 	} else {
-		// Color Picker / Eyedrop tool
-		QOpenGLFramebufferObjectFormat fboFmt;
-		fboFmt.setTextureTarget( GL_TEXTURE_2D );
-		fboFmt.setInternalTextureFormat( GL_RGB );
-		fboFmt.setMipmap( false );
-		fboFmt.setAttachment( QOpenGLFramebufferObject::Attachment::Depth );
+		// Color Picker / Eyedrop tool: grab the rendered frame synchronously
+		// (grabFramebuffer() runs paintGL into the widget's framebuffer and
+		// returns the image) and sample the clicked pixel. The old manual
+		// FBO + update() approach read back an empty buffer under QOpenGLWidget.
+		QImage img = grabFramebuffer();
 
-		QOpenGLFramebufferObject fbo( width(), height(), fboFmt );
-		fbo.bind();
+		// grabFramebuffer() returns a device-pixel image; map the logical click.
+		qreal dpr = devicePixelRatioF();
+		QPoint p( qRound( event->pos().x() * dpr ), qRound( event->pos().y() * dpr ) );
+		p.setX( qBound( 0, p.x(), img.width() - 1 ) );
+		p.setY( qBound( 0, p.y(), img.height() - 1 ) );
 
-		update();
-		update();
-
-		fbo.release();
-
-		QImage * img = new QImage( fbo.toImage() );
-
-		auto what = img->pixel( event->pos() );
-
-		qglClearColor( QColor( what ) );
-		// qDebug() << QColor( what );
-
-		delete img;
+		qglClearColor( QColor( img.pixel( p ) ) );
 	}
 
 	update();

@@ -284,7 +284,7 @@ static void writeShape( const NifModel * nif, const QModelIndex & iShape, QTextS
 		mtl << "decal " << decal << "\r\n";
 
 	if ( !bump.isEmpty() )
-		mtl << "bump " << decal << "\r\n";
+		mtl << "bump " << bump << "\r\n";
 
 	obj << "\r\n# " << name << "\r\n\r\ng " << name << "\r\n" << "usemtl " << matn << "\r\n\r\n";
 
@@ -713,27 +713,29 @@ void importObj( NifModel * nif, const QModelIndex & index )
 				for ( int i = 0; i < 3; i++ ) {
 					QStringList lst = t.value( i == 0 ? 1 : j + i ).split( "/" );
 
-					int v = lst.value( 0 ).toInt();
-					if ( v < 0 )
-						v += overts.count();
+					// Local names deliberately differ from the outer "QStringList t"
+					// to avoid shadowing (a shadow previously hid a v/t mix-up here).
+					int vi = lst.value( 0 ).toInt();
+					if ( vi < 0 )
+						vi += overts.count();
 					else
-						v--;
+						vi--;
 
-					int t = lst.value( 1 ).toInt();
-					if ( t < 0 )
-						v += otexco.count();
+					int ti = lst.value( 1 ).toInt();
+					if ( ti < 0 )
+						ti += otexco.count();
 					else
-						t--;
+						ti--;
 
-					int n = lst.value( 2 ).toInt();
-					if ( n < 0 )
-						n += onorms.count();
+					int ni = lst.value( 2 ).toInt();
+					if ( ni < 0 )
+						ni += onorms.count();
 					else
-						n--;
+						ni--;
 
-					face.p[i].v = v;
-					face.p[i].t = t;
-					face.p[i].n = n;
+					face.p[i].v = vi;
+					face.p[i].t = ti;
+					face.p[i].n = ni;
 				}
 
 				mfaces->append( face );

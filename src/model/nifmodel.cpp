@@ -487,8 +487,12 @@ bool NifModel::updateByteArrayItem( NifItem * array )
 
 	// Grab data from existing rows if appropriate and then purge
 	if ( itemRows > 1 ) {
-		for ( int i = 0; i < itemRows; i++ ) {
-			if ( NifItem * child = array->child( 0 ) ) {
+		// Read from child(i), not child(0), and never write past the buffer:
+		// bytes was sized to the new row count (rows), but the old count
+		// (itemRows) may be larger when the array shrank.
+		int n = qMin( itemRows, rows );
+		for ( int i = 0; i < n; i++ ) {
+			if ( NifItem * child = array->child( i ) ) {
 				bytes[i] = get<quint8>( child );
 			}
 		}

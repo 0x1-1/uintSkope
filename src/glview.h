@@ -202,6 +202,13 @@ protected:
 #endif
 	void glProjection( int x = -1, int y = -1 );
 
+	//! Renders the scene synchronously into an offscreen FBO and returns the
+	//! image. The screenshot ("Save View") and color-picker paths must not rely
+	//! on the asynchronous update()/paintGL() scheduling (QOpenGLWidget renders
+	//! into its own framebuffer), so they capture through this instead.
+	//! \a samples > 1 enables multisampling (resolved in the returned image).
+	QImage renderToImage( int w, int h, int samples = 0 );
+
 	// QWidget Event Handlers
 
 	void dragEnterEvent( QDragEnterEvent * ) override final;

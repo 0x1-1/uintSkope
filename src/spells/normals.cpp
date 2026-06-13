@@ -274,7 +274,13 @@ public:
 			for ( int j = i + 1; j < verts.count(); j++ ) {
 				const Vector3 & b = verts[j];
 
-				if ( ( a - b ).squaredLength() < maxd ) {
+				// "Max Vertex Distance" is a plain distance, so compare it
+				// against the squared distance squared (maxd*maxd). Comparing a
+				// squared length to the un-squared threshold used an effective
+				// radius of sqrt(maxd) (~30x too large at the default 0.001).
+				// NOTE: this intentionally diverges from upstream NifSkope's
+				// output for the same input (upstream has the un-squared bug).
+				if ( ( a - b ).squaredLength() < maxd * maxd ) {
 					Vector3 bn = norms[j];
 
 					if ( Vector3::angle( an, bn ) < maxa ) {

@@ -729,10 +729,10 @@ public:
 		if ( !nif || idx.isValid() )
 			return false;
 
-		if ( nif->getUserVersion2() == 130 )
-			return true;
-
-		return false;
+		// Any Bethesda streamed format with BSTriShape-style vertex data:
+		// Skyrim SE (100), Fallout 4 (130), Fallout 76, etc. Per-block
+		// applicability is re-checked in cast() via castIfApplicable().
+		return nif->getUserVersion2() >= 100;
 	}
 
 	QModelIndex cast( NifModel * nif, const QModelIndex & ) override final
