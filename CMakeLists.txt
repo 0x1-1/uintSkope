@@ -331,7 +331,10 @@ target_link_libraries(uintSkope PRIVATE
 )
 
 # GLU: only where a real GLU exists (Windows/Linux). Qt 6 dropped its GL helpers.
-if(TARGET OpenGL::GLU)
+# Excluded on Apple on purpose: FindOpenGL maps OPENGL_glu_LIBRARY to the AGL
+# framework there, which recent SDKs no longer ship — while the glu* entry points
+# this app uses live in OpenGL.framework, which is already linked above.
+if(TARGET OpenGL::GLU AND NOT APPLE)
     target_link_libraries(uintSkope PRIVATE OpenGL::GLU)
 endif()
 
