@@ -34,10 +34,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0   # full history so the CMake git-revision step works
 
+      # 6.9: the 6.7 macOS packages still carry '-framework AGL' in Qt6::Gui's
+      # link interface, and AGL is gone from the SDK the macOS runner ships.
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.7.*'
+          version: '6.9.*'
           modules: qtimageformats
           cache: true
 
