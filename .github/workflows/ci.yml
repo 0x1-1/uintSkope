@@ -62,19 +62,17 @@ jobs:
         if: runner.os == 'Windows'
         uses: seanmiddleditch/gha-setup-ninja@v6
 
+      # Build through CMakePresets.json (out/build/ci-release). Never configure
+      # into build/ — that directory is tracked content (build/VERSION and the
+      # build/docsys submodule with nif.xml/kfm.xml).
       - name: Configure
-        run: >
-          cmake -B build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DUINTSKOPE_BUILD_TESTS=ON
-          -DUINTSKOPE_ENABLE_WARNINGS=ON
-          -DUINTSKOPE_WARNINGS_AS_ERRORS=OFF
+        run: cmake --preset ci-release
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build --preset ci-release --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --preset ci-release
 
       - name: Upload build log on failure
         if: failure()
@@ -82,8 +80,8 @@ jobs:
         with:
           name: build-log-${{ runner.os }}
           path: |
-            build/**/*.log
-            build/CMakeCache.txt
-            build/CMakeFiles/CMakeConfigureLog.yaml
+            out/build/ci-release/**/*.log
+            out/build/ci-release/CMakeCache.txt
+            out/build/ci-release/CMakeFiles/CMakeConfigureLog.yaml
           if-no-files-found: ignore
           retention-days: 7
