@@ -47,10 +47,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QString>
 #include <QtEndian>
 
-#ifdef __APPLE__
-#include <gl3.h>
-#include <gl3ext.h>
-#endif
+// macOS used to pull glTexStorage2D in from <gl3.h>/<gl3ext.h>, but those are
+// not on the include path (the framework spelling is <OpenGL/gl3.h>) and Apple's
+// gl3.h is core-profile only, so it cannot be combined with the compatibility
+// gl.h this renderer needs. The entry point is resolved through
+// QOpenGLContext::getProcAddress instead, exactly as on the other platforms.
 
 
 /*! @file gltexloaders.cpp
@@ -77,13 +78,19 @@ bool extSupported = true;
 bool extStorageSupported = true;
 
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+// Apple's <OpenGL/glext.h> predates ARB_texture_storage (GL 4.2) and does not
+// declare this typedef, although the driver still exports the entry point.
+// APIENTRY is empty on macOS, so a plain function pointer is the right shape.
+typedef void ( *PFNGLTEXSTORAGE2DPROC )( GLenum target, GLsizei levels, GLenum internalformat,
+                                         GLsizei width, GLsizei height );
+#endif
+
 // OpenGL 4.2
 PFNGLTEXSTORAGE2DPROC glTexStorage2D = nullptr;
 #ifdef _WIN32
 PFNGLCOMPRESSEDTEXSUBIMAGE2DPROC glCompressedTexSubImage2D = nullptr;
 PFNGLCOMPRESSEDTEXIMAGE2DPROC glCompressedTexImage2D = nullptr;
-#endif
 #endif
 
 #define FOURCC_DXT1 MAKEFOURCC( 'D', 'X', 'T', '1' )
@@ -848,12 +855,10 @@ GLuint texLoadNIF( QIODevice & f, QString & texformat, GLenum & target, GLuint &
 void initializeTextureLoaders( const QOpenGLContext * context )
 {
 	if ( !extInitialized ) {
-#ifndef __APPLE__
 		glTexStorage2D = (PFNGLTEXSTORAGE2DPROC)context->getProcAddress( "glTexStorage2D" );
 #ifdef _WIN32
 		glCompressedTexSubImage2D = (PFNGLCOMPRESSEDTEXSUBIMAGE2DPROC)context->getProcAddress( "glCompressedTexSubImage2D" );
 		glCompressedTexImage2D = (PFNGLCOMPRESSEDTEXIMAGE2DPROC)context->getProcAddress( "glCompressedTexImage2D" );
-#endif
 #endif
 		if ( !glTexStorage2D || !glCompressedTexSubImage2D )
 			extStorageSupported = false;

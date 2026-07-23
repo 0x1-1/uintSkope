@@ -89,6 +89,30 @@ else()
     # Consumers do #include "zlib/zlib.h" → expose lib/ as a SYSTEM include.
     target_include_directories(uintskope_zlib SYSTEM PUBLIC "${_uintskope_lib}")
     target_include_directories(uintskope_zlib PRIVATE "${_uintskope_lib}/zlib")
+
+    # zlib's own build performs check_include_file(unistd.h Z_HAVE_UNISTD_H).
+    # We compile the shipped sources without running that configure step, so
+    # zconf.h never includes <unistd.h> and gzlib.c/gzread.c call lseek/read/
+    # close with no declaration — an error, not a warning, on Clang 16+.
+    # PUBLIC because zconf.h also picks z_off_t from this define (off_t vs
+    # long); the library and its consumers must agree.
+    include(CheckIncludeFile)
+    check_include_file(unistd.h UINTSKOPE_HAVE_UNISTD_H)
+    if(UINTSKOPE_HAVE_UNISTD_H)
+        target_compile_definitions(uintskope_zlib PUBLIC Z_HAVE_UNISTD_H)
+    endif()
+
+    if(APPLE)
+        # Workaround, not a fix: on Apple <unistd.h> pulls in TargetConditionals.h,
+        # which defines TARGET_OS_MAC, and this (old) zlib's zutil.h then does
+        #     #ifndef fdopen
+        #     #  define fdopen(fd,mode) NULL
+        # which mangles the SDK's own fdopen declaration in <stdio.h>. Pre-defining
+        # fdopen to itself satisfies that guard and leaves the real function alone.
+        # Upstream zlib dropped the TARGET_OS_MAC branch; updating the submodule is
+        # the real fix.
+        target_compile_definitions(uintskope_zlib PRIVATE fdopen=fdopen)
+    endif()
     if(MSVC)
         target_compile_definitions(uintskope_zlib PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
         target_compile_options(uintskope_zlib PRIVATE /w)

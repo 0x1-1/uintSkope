@@ -66,13 +66,14 @@ jobs:
         if: runner.os == 'Windows'
         uses: seanmiddleditch/gha-setup-ninja@v6
 
+      # Out-of-tree: build/ is tracked content (build/VERSION, build/docsys).
       - name: Configure & build
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUINTSKOPE_BUILD_TESTS=OFF
-          cmake --build build --parallel
+          cmake -B out/build/package -G Ninja -DCMAKE_BUILD_TYPE=Release -DUINTSKOPE_BUILD_TESTS=OFF
+          cmake --build out/build/package --parallel
 
       - name: Install (flat, deployed layout)
-        run: cmake --install build --prefix dist
+        run: cmake --install out/build/package --prefix dist
 
       # ---- Verify the Qt runtime was actually bundled (windeployqt/macdeployqt
       #      only warn on failure, so a broken, non-launching package could

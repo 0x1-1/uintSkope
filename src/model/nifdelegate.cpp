@@ -191,11 +191,14 @@ public:
 	QSize sizeHint( const QStyleOptionViewItem & option, const QModelIndex & index ) const override final
 	{
 		QString text = index.data( NifSkopeDisplayRole ).toString();
-		auto height = option.fontMetrics.lineSpacing() * (text.count( QLatin1Char( '\n' ) ) + 1);
+		// count() returns qsizetype; keep the arithmetic in int so the QSize
+		// braced-init does not narrow (hard error on MSVC).
+		int lines = int( text.count( QLatin1Char( '\n' ) ) ) + 1;
+		int height = option.fontMetrics.lineSpacing() * lines;
 		// Increase height by 25%
-		height *= 1.25;
+		height = int( height * 1.25 );
 
-		return {option.fontMetrics.horizontalAdvance( text ), height};
+		return { option.fontMetrics.horizontalAdvance( text ), height };
 	}
 
 	QWidget * createEditor( QWidget * parent, const QStyleOptionViewItem &, const QModelIndex & index ) const override final

@@ -316,7 +316,9 @@ QVector<int> sortAxes( QVector<float> axesDots )
 		y = 1;
 	}
 
-	return{ x, y, z };
+	// indexOf() returns qsizetype; QVector<int> braced-init would narrow (hard
+	// error on MSVC), so convert explicitly.
+	return { int( x ), int( y ), int( z ) };
 }
 
 void drawAxesOverlay( const Vector3 & c, float axis, QVector<int> axesOrder )
