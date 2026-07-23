@@ -9,6 +9,14 @@
 
 cmake_minimum_required(VERSION 3.21)
 
+# install() DESTINATION normalization (CMake 3.31+). The install rules build
+# destinations like "./shaders"; NEW normalizes them to "shaders", which is what
+# they already resolve to. Guarded so older CMake (down to the 3.21 minimum)
+# still configures.
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 #------------------------------------------------------------------------------
@@ -110,7 +118,18 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Xml Network OpenGL Ope
 qt_standard_project_setup()
 
 # Platform OpenGL + GLU (Qt 6 no longer ships GLU; the renderer uses gluProject etc.)
-set(OpenGL_GL_PREFERENCE GLVND)
+#
+# The renderer is a fixed-function / compatibility-profile one (glPushMatrix,
+# glClientActiveTextureARB, ...). On Linux the GLVND split libraries
+# (libOpenGL.so + libGLX.so) export only the core entry points, so linking
+# against them leaves the legacy symbols undefined; the legacy libGL.so does
+# export both. GLVND stays the preference elsewhere (the variable is only
+# honoured on Linux/BSD anyway).
+if(UNIX AND NOT APPLE)
+    set(OpenGL_GL_PREFERENCE LEGACY)
+else()
+    set(OpenGL_GL_PREFERENCE GLVND)
+endif()
 find_package(OpenGL REQUIRED)
 
 include(Dependencies)

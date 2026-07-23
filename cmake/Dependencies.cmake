@@ -89,6 +89,18 @@ else()
     # Consumers do #include "zlib/zlib.h" → expose lib/ as a SYSTEM include.
     target_include_directories(uintskope_zlib SYSTEM PUBLIC "${_uintskope_lib}")
     target_include_directories(uintskope_zlib PRIVATE "${_uintskope_lib}/zlib")
+
+    # zlib's own build performs check_include_file(unistd.h Z_HAVE_UNISTD_H).
+    # We compile the shipped sources without running that configure step, so
+    # zconf.h never includes <unistd.h> and gzlib.c/gzread.c call lseek/read/
+    # close with no declaration — an error, not a warning, on Clang 16+.
+    # PUBLIC because zconf.h also picks z_off_t from this define (off_t vs
+    # long); the library and its consumers must agree.
+    include(CheckIncludeFile)
+    check_include_file(unistd.h UINTSKOPE_HAVE_UNISTD_H)
+    if(UINTSKOPE_HAVE_UNISTD_H)
+        target_compile_definitions(uintskope_zlib PUBLIC Z_HAVE_UNISTD_H)
+    endif()
     if(MSVC)
         target_compile_definitions(uintskope_zlib PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
         target_compile_options(uintskope_zlib PRIVATE /w)
