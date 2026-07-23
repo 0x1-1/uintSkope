@@ -101,6 +101,18 @@ else()
     if(UINTSKOPE_HAVE_UNISTD_H)
         target_compile_definitions(uintskope_zlib PUBLIC Z_HAVE_UNISTD_H)
     endif()
+
+    if(APPLE)
+        # Workaround, not a fix: on Apple <unistd.h> pulls in TargetConditionals.h,
+        # which defines TARGET_OS_MAC, and this (old) zlib's zutil.h then does
+        #     #ifndef fdopen
+        #     #  define fdopen(fd,mode) NULL
+        # which mangles the SDK's own fdopen declaration in <stdio.h>. Pre-defining
+        # fdopen to itself satisfies that guard and leaves the real function alone.
+        # Upstream zlib dropped the TARGET_OS_MAC branch; updating the submodule is
+        # the real fix.
+        target_compile_definitions(uintskope_zlib PRIVATE fdopen=fdopen)
+    endif()
     if(MSVC)
         target_compile_definitions(uintskope_zlib PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
         target_compile_options(uintskope_zlib PRIVATE /w)
